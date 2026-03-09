@@ -366,13 +366,15 @@ const nFmt = n => Number(n).toLocaleString("es-ES");
 function applyFiltros(pacs, filtros) {
   return pacs.filter(p => {
     return filtros.every(f => {
-      const val = p[f.campo];
       let match = false;
-      if (f.tipo==="bool")   match = f.valor ? Boolean(val) : !val;
-      else if (f.tipo==="select") match = val===f.valor;
-      else if (f.tipo==="range")  match = val>=f.min && val<=f.max;
-      else if (f.tipo==="text")   match = String(val||"").toLowerCase().includes(f.valor.toLowerCase());
-      return f.logica==="NO" ? !match : match;
+      if (f.tipo==="bool")       match = f.valor ? Boolean(p[f.campo]) : !p[f.campo];
+      else if (f.tipo==="select")match = p[f.campo]===f.valor;
+      else if (f.tipo==="range") match = (p[f.campo]||0)>=f.min && (p[f.campo]||0)<=f.max;
+      else if (f.tipo==="texto") match = String(p[f.campo]||"").toLowerCase().includes(f.valor.toLowerCase());
+      else if (f.tipo==="lista") match = Array.isArray(f.valor) && f.valor.includes(p[f.campo]);
+      else if (f.tipo==="bool_pend") match = f.valor ? (p.audit_pend||[]).length>0 : (p.audit_pend||[]).length===0;
+      else if (f.tipo==="pend_item") match = (p.audit_pend||[]).includes(f.valor);
+      return f.logica==="NO" ? !match : f.logica==="O" ? match : match; // O se acumula como OR pero simplificado aquí como AND
     });
   });
 }
@@ -441,7 +443,34 @@ function mapearPaciente(r) {
   if (sexo === 'Hombre' || sexo === 'HOMBRE') sexo = 'H';
   if (sexo === 'Mujer'  || sexo === 'MUJER')  sexo = 'M';
 
-  const p = {
+  // Auditoría — 4 dimensiones
+  const aud_estrat  = audit['estratificacion'] || {};
+  const aud_equipo  = audit['equipo_ref']      || {};
+  const aud_form    = audit['formularios']      || {};
+  const aud_seg     = audit['seguimiento']      || {};
+
+  // Score global de auditoría = media de las dimensiones disponibles
+  const dimsPct = [aud_estrat,aud_equipo,aud_form,aud_seg]
+    .filter(d=>d.total>0)
+    .map(d=>d.pct||0);
+  const audit_global = dimsPct.length ? Math.round(dimsPct.reduce((a,b)=>a+b,0)/dimsPct.length) : 0;
+
+  // Pendientes = todos los "falta" de todas las dimensiones
+  const audit_pend = [
+    ...(aud_estrat.falta||[]),
+    ...(aud_equipo.falta||[]),
+    ...(aud_form.falta||[]),
+    ...(aud_seg.falta||[]),
+  ];
+
+  // Color global auditoría (el peor de las dimensiones)
+  const colorOrder = {ROJO:0,NARANJA:1,AMARILLO:2,VERDE:3};
+  const colores = [aud_estrat,aud_equipo,aud_form,aud_seg].filter(d=>d.color).map(d=>d.color);
+  const color_global = colores.length ? colores.reduce((worst,c)=>
+    (colorOrder[c]??99)<(colorOrder[worst]??99)?c:worst
+  ) : 'ROJO';
+
+  return {
     // ── IDENTIFICACIÓN (columnas directas) ──
     id:     r.id_paciente,
     cic:    r.cic,
@@ -451,15 +480,15 @@ function mapearPaciente(r) {
     centro: r.centro,
     cupo:   r.codigo_cupo,
 
-    // ── EQUIPO REFERENCIA (dentro de criterios) ──
-    medico:      getC(crit, '04-13-03-3') || getC(crit, '04-13-03-02') || '',
-    bloque:      getC(crit, '04-13-03-02') || '',
-    gip_ap:      esSi(getC(crit, '04-12-05-02')),
-    gip_hosp:    esSi(getC(crit, '04-13-09-01')),
-    gip_osarean: esSi(getC(crit, '04-15-09-01')),
+    // ── EQUIPO REFERENCIA (en criterios por código) ──
+    medico:      getC(crit,'04-13-03-3') || getC(crit,'04-13-03-02') || '',
+    bloque:      getC(crit,'04-13-03-02') || '',
+    gip_ap:      esSi(getC(crit,'04-12-05-02')),
+    gip_hosp:    esSi(getC(crit,'04-13-09-01')),
+    gip_osarean: esSi(getC(crit,'04-15-09-01')),
 
     // ── GRUPO DE POBLACIÓN ──
-    pob: getC(crit, '05-17-00-02') || '',
+    pob: crit['05-17-00-02 CLAS POBLACION APP_POBLACION DIANA grupos'] || '',
 
     // ── CARACTERÍSTICAS / PERFILES ──
     geron:   esSi(crit['CARACT_GERONTOLOGICO']),
@@ -472,23 +501,29 @@ function mapearPaciente(r) {
     demog:   esSi(crit['CARACT_DEMOGRAFICOS']),
     polimed: esSi(crit['CARACT_POLIMEDICADO']),
     may85:   esSi(crit['CARACT_>85']),
-    social:  crit['CARACT_CARGA_SOCIAL'] || null,
+    social:  parseFloat(crit['05-18-00-13 CLAS CARACT APP_11 CARGA SOCIAL']) || 0,
 
-    // ── ÍNDICES ──
-    compl: parseFloat(getC(crit, '05-19-00-15')) || 0,
-    co:    parseFloat(getC(crit, '05-19-00-13')) || 0,
-    fr:    parseFloat(getC(crit, '05-19-00-14')) || 0,
+    // ── 3 ÍNDICES (numéricos) ──
+    co:    parseFloat(crit['05-19-00-13 CLAS INDICE APP_COMORBILIDAD'])  || 0,
+    fr:    parseFloat(crit['05-19-00-14 CLAS INDICE APP_FRECUENTACION']) || 0,
+    compl: parseFloat(crit['05-19-00-15 CLAS INDICE APP_COMPLEJIDAD'])   || 0,
 
-    // ── AUDITORÍA ──
-    top_adec:   parseFloat(audit['top_adec']   ?? audit['TOP']   ?? audit['1_estratificacion'] ?? 0) || 0,
-    audit_adec: parseFloat(audit['audit_adec'] ?? audit['AUDIT'] ?? audit['3_formularios']     ?? 0) || 0,
-    audit_pend: Array.isArray(audit['pendientes']) ? audit['pendientes'] : [],
+    // ── AUDITORÍA (4 dimensiones) ──
+    audit_global,           // % medio global
+    audit_color: color_global,
+    audit_pend,             // array de elementos pendientes
+    audit_estrat:  aud_estrat,   // {pct,color,falta,total,cumplidos}
+    audit_equipo:  aud_equipo,
+    audit_form:    aud_form,
+    audit_seg:     aud_seg,
 
-    // ── REFERENCIA a criterios raw por si acaso ──
+    // Para compatibilidad con código existente
+    top_adec:   parseFloat(crit['05-19-00-15 CLAS INDICE APP_COMPLEJIDAD']) || 0,
+    audit_adec: audit_global,
+
+    // Raw por si se necesita
     _criterios: crit,
   };
-
-  return p;
 }
 
 async function cargarCriteriosGrupo(grupo, ids) {
@@ -508,7 +543,22 @@ async function cargarCriteriosGrupo(grupo, ids) {
 // ════════════════════════════════════════════════════════════════════════════
 // ❺  MINI COMPONENTES COMPARTIDOS
 // ════════════════════════════════════════════════════════════════════════════
-function PobBadge({pob}) {
+function AuditBadge({dim, label}) {
+  if (!dim || !dim.total) return null;
+  const colMap = {VERDE:"#059669",AMARILLO:"#D97706",NARANJA:"#EA580C",ROJO:"#DC2626"};
+  const bgMap  = {VERDE:"#D1FAE5",AMARILLO:"#FEF3C7",NARANJA:"#FFF7ED",ROJO:"#FEE2E2"};
+  const c = colMap[dim.color] || "#94A3B8";
+  const bg = bgMap[dim.color] || "#F1F5F9";
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",background:bg,border:`1px solid ${c}30`,borderRadius:7}}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
+      <div style={{flex:1}}>
+        <div style={{fontSize:9,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:.5}}>{label}</div>
+        <div style={{fontSize:12,fontWeight:800,color:c}}>{dim.pct}% <span style={{fontSize:9,fontWeight:400,color:"#94A3B8"}}>({dim.cumplidos}/{dim.total})</span></div>
+      </div>
+    </div>
+  );
+}
   const c = POB_DEF[pob]||{bg:"#6B7280",lt:"#F3F4F6"};
   return <span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:c.lt,color:c.bg,whiteSpace:"nowrap",border:`1px solid ${c.bg}30`}}>{pob}</span>;
 }
@@ -770,191 +820,213 @@ function ModalPaciente({pat, canCIC, criteriosData, loadedGrupos, onLoadGrupo, o
   };
 
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:500,padding:16,overflowY:"auto"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:14,width:"100%",maxWidth:700,margin:"auto",marginTop:20,marginBottom:20,boxShadow:"0 24px 72px rgba(0,0,0,0.5)"}}>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:500,padding:"16px",overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:14,width:"100%",maxWidth:720,margin:"auto",marginTop:20,marginBottom:20,boxShadow:"0 24px 72px rgba(0,0,0,0.5)"}}>
 
-        {/* CABECERA */}
-        <div style={{background:"linear-gradient(135deg,#0F172A,#1E3A5F)",borderRadius:"14px 14px 0 0",padding:"18px 22px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div>
-              <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5}}>PACIENTE · VISOR PCRON</div>
-              <div style={{color:"white",fontSize:22,fontWeight:900,fontFamily:"monospace",letterSpacing:-1}}>{pat.id}</div>
-              <div style={{color:canCIC?"#94A3B8":"#FCA5A5",fontSize:11,marginBottom:6}}>
-                CIC: {canCIC ? pat.cic : <span style={{color:"#FCA5A5"}}>🔒 RESTRINGIDO</span>}
+        {/* ── CABECERA OSCURA ── */}
+        <div style={{background:"linear-gradient(135deg,#0F172A,#1E3A5F)",borderRadius:"14px 14px 0 0",padding:"16px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{color:"#64748B",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:4}}>PACIENTE · VISOR PCRON</div>
+              {/* ID + CIC */}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                <span style={{color:"white",fontSize:20,fontWeight:900,fontFamily:"monospace"}}>{pat.id}</span>
+                <span style={{fontSize:11,color:canCIC?"#94A3B8":"#FCA5A5"}}>
+                  CIC: {canCIC ? pat.cic : "🔒 RESTRINGIDO"}
+                </span>
               </div>
-              <PobBadge pob={pat.pob}/>
+              {/* Datos básicos en la cabecera */}
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[
+                  [pat.sexo==="H"?"♂":"♀", pat.sexo==="H"?"Hombre":"Mujer", "#3B82F6"],
+                  ["🎂", `${pat.edad} años`, "#6366F1"],
+                  ["🏥", pat.centro||"—", "#0891B2"],
+                  ["📋", pat.cupo||"—", "#64748B"],
+                  ["👨‍⚕️", pat.medico||"Sin médico PCRON", pat.medico?"#059669":"#94A3B8"],
+                  ["🏢", pat.bloque||"Sin bloque", pat.bloque?"#D97706":"#94A3B8"],
+                ].map(([ico,val,col])=>(
+                  <div key={val} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",background:"rgba(255,255,255,0.07)",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)"}}>
+                    <span style={{fontSize:10}}>{ico}</span>
+                    <span style={{fontSize:11,color:col,fontWeight:600}}>{val}</span>
+                  </div>
+                ))}
+              </div>
+              {/* GIP programas */}
+              <div style={{display:"flex",gap:5,marginTop:6}}>
+                {[
+                  ["GIP AP",     pat.gip_ap,     "#3B82F6"],
+                  ["GIP Hosp.",  pat.gip_hosp,   "#DC2626"],
+                  ["GIP OSAREAN",pat.gip_osarean,"#7C3AED"],
+                ].map(([l,activo,c])=>(
+                  <span key={l} style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,
+                    background:activo?c+"30":"rgba(255,255,255,0.05)",
+                    color:activo?c:"#475569",
+                    border:`1px solid ${activo?c+"50":"rgba(255,255,255,0.08)"}`}}>
+                    {activo?"●":"○"} {l}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
-              <button onClick={onClose} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:7,padding:"5px 11px",color:"white",cursor:"pointer",fontSize:16}}>✕</button>
-              <button onClick={copiar} style={{background:copied?"#059669":"rgba(255,255,255,0.1)",border:`1px solid ${copied?"#059669":"rgba(255,255,255,0.25)"}`,borderRadius:7,padding:"6px 12px",color:"white",cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:5,transition:"all .2s",whiteSpace:"nowrap"}}>
-                {copied?"✓ Copiado":"📋 Pegar a Historia"}
+            {/* Botones acción */}
+            <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end",flexShrink:0}}>
+              <button onClick={onClose} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:7,padding:"5px 11px",color:"white",cursor:"pointer",fontSize:16,lineHeight:1}}>✕</button>
+              <button onClick={copiar} style={{background:copied?"#059669":"rgba(255,255,255,0.1)",border:`1px solid ${copied?"#059669":"rgba(255,255,255,0.2)"}`,borderRadius:7,padding:"6px 12px",color:"white",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap",transition:"all .2s"}}>
+                {copied?"✓ Copiado":"📋 Historia"}
               </button>
-              <button onClick={exportPDF} style={{background:"rgba(59,130,246,0.2)",border:"1px solid rgba(59,130,246,0.5)",borderRadius:7,padding:"6px 12px",color:"#93C5FD",cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
-                📄 Exportar PDF
+              <button onClick={exportPDF} style={{background:"rgba(59,130,246,0.2)",border:"1px solid rgba(59,130,246,0.5)",borderRadius:7,padding:"6px 12px",color:"#93C5FD",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+                📄 PDF
               </button>
             </div>
           </div>
         </div>
 
-        <div style={{padding:"16px 22px",maxHeight:"75vh",overflowY:"auto"}}>
+        {/* ── CUERPO DEL MODAL ── */}
+        <div style={{padding:"16px 20px",maxHeight:"72vh",overflowY:"auto"}}>
 
-          {/* 1. DATOS BÁSICOS */}
+          {/* ① GRUPO DE POBLACIÓN */}
+          <div style={{marginBottom:14,padding:"12px 16px",background:"#F8FAFC",borderRadius:10,border:"1px solid #E2E8F0"}}>
+            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>① Grupo de Población</div>
+            <PobBadge pob={pat.pob}/>
+            {!pat.pob && <span style={{fontSize:12,color:"#94A3B8",fontStyle:"italic"}}>Sin grupo asignado — ejecuta el Colab para calcular</span>}
+          </div>
+
+          {/* ② PERFILES + CRITERIOS POSITIVOS INLINE */}
           <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.8,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6"}}/>Datos Básicos
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>② Características · Criterios positivos por perfil</div>
+            {ac.length===0 ? (
+              <div style={{padding:"12px 16px",background:"#F8FAFC",borderRadius:8,fontSize:12,color:"#94A3B8",fontStyle:"italic"}}>Sin características activas</div>
+            ) : ac.map(caract=>{
+              const perfilData = CRITERIOS_PERFIL[caract.k];
+              // Criterios positivos: buscamos en _criterios raw del paciente
+              const raw = pat._criterios || {};
+              const positivos = perfilData ? perfilData.dims.flatMap(d=>d.items).filter(cr=>{
+                const v = raw[cr.col] || getC(raw, cr.col);
+                return esSi(v);
+              }) : [];
+              return (
+                <div key={caract.k} style={{marginBottom:8,border:`1px solid ${caract.c}25`,borderRadius:9,overflow:"hidden"}}>
+                  {/* Cabecera perfil */}
+                  <div style={{padding:"7px 12px",background:caract.c+"10",display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:caract.c,flexShrink:0}}/>
+                    <span style={{fontSize:12,fontWeight:800,color:caract.c,flex:1}}>{caract.l}</span>
+                    <span style={{fontSize:10,color:caract.c,background:caract.c+"15",padding:"1px 8px",borderRadius:10,fontWeight:700}}>
+                      {positivos.length} criterio{positivos.length!==1?"s":""} positivo{positivos.length!==1?"s":""}
+                    </span>
+                  </div>
+                  {/* Criterios positivos */}
+                  {positivos.length>0 && (
+                    <div style={{padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:4}}>
+                      {positivos.map((cr,i)=>(
+                        <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,padding:"3px 9px",
+                          background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:5,color:"#065F46",fontWeight:600}}>
+                          ✓ {cr.l}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {positivos.length===0 && (
+                    <div style={{padding:"6px 12px",fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>
+                      Los criterios de este perfil no están cargados o no hay positivos registrados
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ③ ÍNDICES */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>③ Índices de Complejidad</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
               {[
-                ["Sexo",    pat.sexo==="H"?"Hombre":"Mujer"],
-                ["Edad",    `${pat.edad} años`],
-                ["OSI",     pat.osi],
-                ["Centro",  pat.centro],
-                ["Cupo",    pat.cupo],
-                ["Médico Ref.", pat.medico||"—"],
-                ["Bloque PCRON",pat.bloque||"—"],
-                ["GIP AP",   pat.gip_ap?"Sí":"No"],
-                ["GIP Hosp.", pat.gip_hosp?"Sí":"No"],
-              ].map(([k,v])=>(
-                <div key={k} style={{background:"#F8FAFC",borderRadius:7,padding:"7px 10px"}}>
-                  <div style={{fontSize:8,color:"#94A3B8",fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>{k}</div>
-                  <div style={{fontSize:12,fontWeight:600,color:"#1E293B",marginTop:1}}>{v}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 2. CARACTERÍSTICAS ACTIVAS */}
-          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
-            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:7,height:7,borderRadius:"50%",background:"#8B5CF6"}}/>
-              CARACTERÍSTICAS ACTIVAS
-              <span style={{marginLeft:"auto",fontSize:11,color:"#64748B",fontWeight:400}}>{ac.length}/{CARACTS_DEF.length}</span>
-            </div>
-            <div style={{padding:"10px 12px",display:"flex",flexWrap:"wrap",gap:5}}>
-              {ac.length===0 ? (
-                <span style={{color:"#94A3B8",fontSize:12,fontStyle:"italic"}}>Sin características activas</span>
-              ) : ac.map(c=>(
-                <div key={c.k} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:c.c+"15",border:`1px solid ${c.c}40`}}>
-                  <div style={{width:6,height:6,borderRadius:"50%",background:c.c}}/>
-                  <span style={{color:c.c,fontWeight:700,fontSize:11}}>{c.l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. CRITERIOS ACTIVOS POR PERFIL */}
-          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
-            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:7,height:7,borderRadius:"50%",background:"#F59E0B"}}/>
-              CRITERIOS ACTIVOS POR PERFIL
-            </div>
-            <div style={{padding:"10px 12px"}}>
-              {ac.length===0 ? (
-                <span style={{color:"#94A3B8",fontSize:12,fontStyle:"italic"}}>Sin perfiles activos</span>
-              ) : ac.map(caract=>{
-                const crits = CRITERIOS_PERFIL[caract.k]||[];
-                if (!crits.length) return null;
-                // Ver qué grupo cubre estos criterios
-                const grupoId = GRUPOS_CRITERIOS.find(g=>g.keys.some(k=>crits.some(c=>c.k===k)))?.id;
-                const grupoLoaded = grupoId && loadedGrupos.includes(grupoId);
+                ["Comorbilidad",  pat.co,    10, "#0891B2"],
+                ["Frecuentación", pat.fr,    10, "#D97706"],
+                ["Complejidad",   pat.compl, 20, "#6366F1"],
+              ].map(([lbl,val,max,color])=>{
+                const pct2 = Math.min((val||0)/max*100,100);
+                const nivel = pct2>60?"Alto":pct2>35?"Moderado":"Bajo";
+                const nc = pct2>60?"#DC2626":pct2>35?"#D97706":"#059669";
                 return (
-                  <div key={caract.k} style={{marginBottom:10}}>
-                    <div style={{fontSize:11,fontWeight:700,color:caract.c,marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
-                      <div style={{width:5,height:5,borderRadius:"50%",background:caract.c}}/>
-                      {caract.l}
-                      {!grupoLoaded && grupoId && (
-                        <button onClick={()=>cargarGrupo(grupoId)} disabled={loadingGrupo===grupoId}
-                          style={{marginLeft:"auto",padding:"2px 8px",fontSize:9,background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:4,cursor:"pointer",color:"#92400E",fontWeight:700}}>
-                          {loadingGrupo===grupoId?"Cargando…":"📦 Cargar criterios"}
-                        </button>
-                      )}
+                  <div key={lbl} style={{background:color+"08",border:`1px solid ${color}20`,borderRadius:9,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,fontWeight:800,color,letterSpacing:.5,textTransform:"uppercase",marginBottom:4}}>{lbl}</div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:5,marginBottom:6}}>
+                      <span style={{fontSize:22,fontWeight:900,color,lineHeight:1}}>{val||0}</span>
+                      <span style={{fontSize:9,fontWeight:700,color:nc,background:nc+"20",padding:"1px 6px",borderRadius:4}}>{nivel}</span>
                     </div>
-                    {crits.map(cr=>{
-                      if (!grupoLoaded) {
-                        return (
-                          <div key={cr.k} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:5,background:"#F8FAFC",border:"1px solid #E2E8F0",marginBottom:3}}>
-                            <span style={{color:"#94A3B8",fontSize:10}}>○</span>
-                            <span style={{fontSize:11,color:"#94A3B8",fontStyle:"italic"}}>{cr.l}</span>
-                            <span style={{marginLeft:"auto",fontSize:9,color:"#D97706",fontWeight:700}}>No cargado</span>
-                          </div>
-                        );
-                      }
-                      const cd = criteriosData?.[cr.k];
-                      const patRow = cd?.[pat.id];
-                      const activo = patRow && patRow[cr.k];
-                      return (
-                        <div key={cr.k} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:5,border:"1px solid",marginBottom:3,
-                          borderColor:activo?"#6EE7B7":"#FCA5A5",
-                          background:activo?"#D1FAE5":"#FEF2F2"}}>
-                          <span style={{color:activo?"#059669":"#DC2626",fontSize:12,fontWeight:800}}>{activo?"✓":"○"}</span>
-                          <span style={{fontSize:11,color:activo?"#065F46":"#991B1B",fontWeight:activo?600:400}}>{cr.l}</span>
-                          {activo && <span style={{marginLeft:"auto",fontSize:9,color:"#059669",fontWeight:700,background:"#D1FAE5",padding:"1px 5px",borderRadius:3}}>ACTIVO</span>}
-                        </div>
-                      );
-                    })}
+                    <div style={{height:5,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:pct2+"%",background:color,borderRadius:3,transition:"width .4s"}}/>
+                    </div>
+                    <div style={{fontSize:8,color:"#94A3B8",marginTop:3}}>max referencia: {max}</div>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* 4. ÍNDICES */}
-          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
-            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:7,height:7,borderRadius:"50%",background:"#3B82F6"}}/>ÍNDICES DE COMPLEJIDAD
-            </div>
-            <div style={{padding:"12px 14px",display:"flex",gap:8}}>
-              {[["COMORBILIDAD",pat.co,7],["HIPERFRECUENT.",pat.fr,13],["COMPLEJIDAD",pat.compl,30]].map(([lbl,val,max])=>{
-                const p=Math.min(val/max*100,100);
-                const color=val>max*0.6?"#DC2626":val>max*0.35?"#D97706":"#059669";
-                const nivel=val>max*0.6?"Alto":val>max*0.35?"Moderado":"Bajo";
-                return (
-                  <div key={lbl} style={{flex:1,background:color+"15",border:`1px solid ${color}40`,borderRadius:9,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,fontWeight:800,color,letterSpacing:.8,marginBottom:3}}>{lbl}</div>
-                    <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:6}}>
-                      <span style={{fontSize:20,fontWeight:800,color,lineHeight:1}}>{val}</span>
-                      <span style={{background:color+"25",color,padding:"1px 6px",borderRadius:6,fontSize:9,fontWeight:700}}>{nivel}</span>
-                    </div>
-                    <div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}>
-                      <div style={{height:"100%",width:p+"%",background:color,borderRadius:3}}/>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 5. TOP + AUDITORÍA */}
-          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
-            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B"}}>
-              ⭐ PERFILES TOP — Adecuación
-            </div>
-            <div style={{padding:"12px 14px"}}>
-              <IndexBar label="% Adecuación TOP" value={pat.top_adec} max={100} osi_media={OSI_STATS.top_media} osi_p75={OSI_STATS.top_p75} color="#6366F1"/>
-            </div>
-          </div>
-          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden"}}>
-            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B"}}>
-              🔍 AUDITORÍA — Calidad y Elementos Pendientes
-            </div>
-            <div style={{padding:"12px 14px"}}>
-              <IndexBar label="% Adecuación Auditoría" value={pat.audit_adec} max={100} osi_media={OSI_STATS.audit_media} osi_p75={OSI_STATS.audit_p75} color="#0891B2"/>
-              {(pat.audit_pend||[]).length>0 ? (
-                <div style={{marginTop:8}}>
-                  <div style={{fontSize:10,fontWeight:700,color:"#92400E",marginBottom:5}}>⚠️ ELEMENTOS PENDIENTES ({(pat.audit_pend||[]).length})</div>
-                  {(pat.audit_pend||[]).map(e=>(
-                    <div key={e} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:5,marginBottom:3}}>
-                      <span style={{color:"#D97706",fontSize:10}}>●</span>
-                      <span style={{fontSize:11,color:"#92400E",fontWeight:500}}>{e}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:7,marginTop:8}}>
-                  <span>✅</span><span style={{fontSize:12,color:"#065F46",fontWeight:600}}>Sin elementos pendientes — Auditoría completa</span>
-                </div>
+          {/* ④ AUDITORÍA 4 DIMENSIONES */}
+          <div>
+            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+              ④ Auditoría de Calidad
+              {pat.audit_pend?.length>0 && (
+                <span style={{fontSize:9,fontWeight:700,color:"#DC2626",background:"#FEE2E2",padding:"1px 8px",borderRadius:10,textTransform:"none"}}>
+                  ⚠️ {pat.audit_pend.length} pendiente{pat.audit_pend.length>1?"s":""}
+                </span>
               )}
             </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
+              {[
+                [pat.audit_estrat, "1 · Estratificación"],
+                [pat.audit_equipo, "2 · Equipo Referencia"],
+                [pat.audit_form,   "3 · Formularios"],
+                [pat.audit_seg,    "4 · Seguimiento"],
+              ].map(([dim,label])=>{
+                if (!dim || !dim.total) return (
+                  <div key={label} style={{padding:"8px 12px",background:"#F8FAFC",borderRadius:8,border:"1px solid #E2E8F0"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:3}}>{label}</div>
+                    <div style={{fontSize:11,color:"#CBD5E1",fontStyle:"italic"}}>Sin datos</div>
+                  </div>
+                );
+                const colMap={VERDE:"#059669",AMARILLO:"#D97706",NARANJA:"#EA580C",ROJO:"#DC2626"};
+                const bgMap ={VERDE:"#D1FAE5",AMARILLO:"#FEF3C7",NARANJA:"#FFF7ED",ROJO:"#FEE2E2"};
+                const c  = colMap[dim.color]||"#94A3B8";
+                const bg = bgMap[dim.color]||"#F8FAFC";
+                return (
+                  <div key={label} style={{padding:"8px 12px",background:bg,borderRadius:8,border:`1px solid ${c}30`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <div style={{fontSize:9,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:.5}}>{label}</div>
+                      <span style={{fontSize:9,fontWeight:800,padding:"1px 7px",borderRadius:10,background:c+"25",color:c}}>{dim.color}</span>
+                    </div>
+                    <div style={{fontSize:18,fontWeight:900,color:c,lineHeight:1}}>{dim.pct}%
+                      <span style={{fontSize:10,fontWeight:400,color:"#94A3B8",marginLeft:5}}>{dim.cumplidos}/{dim.total}</span>
+                    </div>
+                    {dim.falta?.length>0 && (
+                      <div style={{marginTop:5,display:"flex",flexWrap:"wrap",gap:3}}>
+                        {dim.falta.map((f,i)=>(
+                          <span key={i} style={{fontSize:9,padding:"2px 6px",background:"rgba(0,0,0,0.06)",borderRadius:4,color:"#64748B"}}>✗ {f}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Resumen pendientes */}
+            {pat.audit_pend?.length>0 ? (
+              <div style={{padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#92400E",marginBottom:6}}>⚠️ PENDIENTES GLOBALES ({pat.audit_pend.length})</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {pat.audit_pend.map((e,i)=>(
+                    <span key={i} style={{fontSize:10,padding:"3px 8px",background:"white",border:"1px solid #FCD34D",borderRadius:5,color:"#92400E",fontWeight:500}}>● {e}</span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:8}}>
+                <span style={{fontSize:16}}>✅</span>
+                <span style={{fontSize:12,color:"#065F46",fontWeight:600}}>Auditoría completa — Sin elementos pendientes</span>
+              </div>
+            )}
           </div>
 
         </div>
@@ -1296,183 +1368,505 @@ function TabDetalle({pacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ❿  TAB FILTROS (versión v5 integrada)
+// ❿  TAB FILTROS v6
 // ════════════════════════════════════════════════════════════════════════════
-function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo}) {
-  const [saveName,setSaveName]=useState("");
-  const [expanded,setExpanded]=useState({});
-  const toggle=(k)=>setExpanded(e=>({...e,[k]:!e[k]}));
-  const addFiltro=(f)=>setFiltros(prev=>[...prev,{...f,id:Date.now(),logica:"Y"}]);
-  const removeFiltro=(id)=>setFiltros(prev=>prev.filter(x=>x.id!==id));
-  const updateLogica=(id,l)=>setFiltros(prev=>prev.map(f=>f.id===id?{...f,logica:l}:f));
-  const logicaColor={Y:"#3B82F6",O:"#D97706",NO:"#DC2626"};
-  const nFiltrado=applyFiltros(pacientes,filtros).length;
+function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo,setTab}) {
+  const [saveName,setSaveName]   = useState("");
+  const [showSave,setShowSave]   = useState(false);
+  const [busqTexto,setBusqTexto] = useState("");
+  const [listaPacs,setListaPacs] = useState("");
+  const [showLista,setShowLista] = useState(false);
+  const [listaResult,setListaResult] = useState(null);
+  const [osiSel,setOsiSel]       = useState([]);
+  const [centroTxt,setCentroTxt] = useState("");
+  const [expanded,setExpanded]   = useState({osi:true,centro:true,pob:true,perfiles:true});
 
-  const Seccion=({k,label,badge,children})=>(
-    <div style={{border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden",marginBottom:6}}>
-      <div onClick={()=>toggle(k)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#F8FAFC",cursor:"pointer",userSelect:"none"}}>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <span style={{fontSize:12,fontWeight:700,color:"#1E293B"}}>{label}</span>
-          {badge&&<span style={{fontSize:9,background:"#DBEAFE",color:"#1D4ED8",padding:"1px 6px",borderRadius:3,fontWeight:700}}>{badge}</span>}
+  const toggle = k => setExpanded(e=>({...e,[k]:!e[k]}));
+  const logicaColor = {Y:"#3B82F6",O:"#D97706",NO:"#DC2626"};
+  const nFiltrado = applyFiltros(pacientes,filtros).length;
+
+  // Añadir filtro con lógica por defecto Y
+  const add = f => setFiltros(p=>[...p,{...f,id:Date.now()+Math.random(),logica:"Y"}]);
+  const remove = id => setFiltros(p=>p.filter(x=>x.id!==id));
+  const updateLogica = (id,l) => setFiltros(p=>p.map(f=>f.id===id?{...f,logica:l}:f));
+
+  // Centros filtrados por OSI seleccionada
+  const centrosDisp = useMemo(()=>{
+    const todos = [...new Set(pacientes.map(p=>p.centro).filter(Boolean))].sort();
+    if (osiSel.length===0) return todos;
+    const osiMap = {"01 OSID":"DONOSTIALDEA","02 OSIT":"TOLOSALDEA"};
+    return todos.filter(c=>{
+      const pacs = pacientes.filter(p=>p.centro===c);
+      return pacs.some(p=>osiSel.includes(p.osi));
+    });
+  },[pacientes,osiSel]);
+
+  const centrosFiltrados = centroTxt
+    ? centrosDisp.filter(c=>c.toLowerCase().includes(centroTxt.toLowerCase()))
+    : centrosDisp;
+
+  // Cupos de centros seleccionados en filtros
+  const centrosSel = filtros.filter(f=>f.campo==="centro").map(f=>f.valor);
+  const cuposDisp = useMemo(()=>{
+    const base = centrosSel.length>0
+      ? pacientes.filter(p=>centrosSel.includes(p.centro))
+      : pacientes;
+    return [...new Set(base.map(p=>p.cupo).filter(Boolean))].sort();
+  },[pacientes,centrosSel]);
+
+  // Médicos de referencia disponibles
+  const medicosDisp = useMemo(()=>
+    [...new Set(pacientes.map(p=>p.medico).filter(Boolean))].sort()
+  ,[pacientes]);
+
+  // Pendientes únicos de auditoría en la población
+  const pendientesDisp = useMemo(()=>{
+    const set = new Set();
+    pacientes.forEach(p=>(p.audit_pend||[]).forEach(x=>set.add(x)));
+    return [...set].sort();
+  },[pacientes]);
+
+  // Análisis de lista de pacientes
+  const analizarLista = () => {
+    const ids = listaPacs.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
+    if (!ids.length) return;
+    const enBD  = ids.filter(id=>pacientes.some(p=>p.id===id||p.cic===id));
+    const fuera = ids.filter(id=>!pacientes.some(p=>p.id===id||p.cic===id));
+    setListaResult({total:ids.length, enBD, fuera});
+  };
+  const exportarFuera = () => {
+    if (!listaResult) return;
+    const blob = new Blob([listaResult.fuera.join("\n")],{type:"text/plain"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "pacientes_no_encontrados.txt";
+    a.click();
+  };
+
+  // ── CHIPS DE FILTROS ACTIVOS (barra superior) ──
+  const BarraFiltros = ()=>(
+    <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:filtros.length>0?8:0}}>
+        <span style={{fontSize:10,fontWeight:700,color:"#1E293B"}}>
+          🎛 FILTROS ACTIVOS
+          {filtros.length>0&&<span style={{marginLeft:5,background:"#3B82F6",color:"white",borderRadius:10,padding:"1px 6px",fontSize:9}}>{filtros.length}</span>}
+        </span>
+        <span style={{fontSize:11,color:"#3B82F6",fontWeight:700,marginLeft:4}}>→ {nFmt(nFiltrado)} pacientes</span>
+        <div style={{marginLeft:"auto",display:"flex",gap:5}}>
+          {filtros.length>0&&<button onClick={()=>setFiltros([])} style={{padding:"3px 10px",fontSize:10,fontWeight:700,background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:5,color:"#DC2626",cursor:"pointer"}}>✕ Limpiar todo</button>}
+          {filtros.length>0&&<button onClick={()=>setShowSave(v=>!v)} style={{padding:"3px 10px",fontSize:10,fontWeight:700,background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:5,color:"#1D4ED8",cursor:"pointer"}}>💾 Guardar</button>}
+          {savedFiltros.length>0&&(
+            <select onChange={e=>{if(!e.target.value)return;const sf=savedFiltros.find(s=>s.name===e.target.value);if(sf)setFiltros(sf.filtros);e.target.value="";}}
+              style={{fontSize:10,padding:"3px 8px",border:"1px solid #E2E8F0",borderRadius:5,background:"white",color:"#475569",cursor:"pointer"}}>
+              <option value="">▶ Ejecutar guardado…</option>
+              {savedFiltros.map(s=><option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
+          )}
+          {filtros.length>0&&<button onClick={()=>setTab("DETALLE")} style={{padding:"3px 10px",fontSize:10,fontWeight:700,background:"#1D4ED8",border:"none",borderRadius:5,color:"white",cursor:"pointer"}}>▶ Ver resultado</button>}
         </div>
-        <span style={{fontSize:10,color:"#94A3B8"}}>{expanded[k]?"▲":"▼"}</span>
       </div>
-      {expanded[k]&&<div style={{padding:"10px 12px"}}>{children}</div>}
+      {showSave&&(
+        <div style={{display:"flex",gap:6,marginBottom:6}}>
+          <input value={saveName} onChange={e=>setSaveName(e.target.value)} placeholder="Nombre del filtro guardado…"
+            style={{flex:1,padding:"5px 9px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,fontFamily:"inherit"}}/>
+          <button onClick={()=>{if(saveName){setSavedFiltros(p=>[...p,{name:saveName,filtros:[...filtros],fecha:new Date().toLocaleDateString("es-ES")}]);setSaveName("");setShowSave(false);}}}
+            style={{padding:"5px 12px",background:"#059669",border:"none",borderRadius:5,color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}}>Guardar</button>
+        </div>
+      )}
+      {filtros.length>0&&(
+        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+          {filtros.map(f=>(
+            <span key={f.id} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,padding:"3px 8px",borderRadius:5,fontWeight:600,
+              background:{Y:"#EFF6FF",O:"#FEF3C7",NO:"#FEF2F2"}[f.logica]||"#F8FAFC",
+              border:`1px solid ${{Y:"#BFDBFE",O:"#FCD34D",NO:"#FCA5A5"}[f.logica]||"#E2E8F0"}`,
+              color:{Y:"#1D4ED8",O:"#92400E",NO:"#991B1B"}[f.logica]||"#475569"}}>
+              <select value={f.logica} onChange={e=>updateLogica(f.id,e.target.value)}
+                style={{fontSize:8,fontWeight:800,border:"none",background:"transparent",color:"inherit",cursor:"pointer",padding:0}}>
+                {["Y","O","NO"].map(l=><option key={l} value={l}>{l}</option>)}
+              </select>
+              {f.label}
+              <button onClick={()=>remove(f.id)} style={{background:"none",border:"none",color:"inherit",cursor:"pointer",padding:"0 0 0 2px",fontSize:12,lineHeight:1,opacity:.6}}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 
-  const FBool=({campo,label})=>(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-      <span style={{fontSize:12,color:"#475569"}}>{label}</span>
-      <div style={{display:"flex",gap:4}}>
-        {["Sí","No"].map(v=>(
-          <button key={v} onClick={()=>addFiltro({campo,label,tipo:"bool",valor:v==="Sí"})}
-            style={{padding:"3px 9px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:5,background:"white",cursor:"pointer",color:"#475569"}}>
-            {v}
+  // ── BARRA BÚSQUEDA TEXTO + LISTA PACIENTES ──
+  const BarraBusqueda = ()=>(
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+      {/* Búsqueda texto libre */}
+      <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 14px"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:6}}>🔍 BÚSQUEDA RÁPIDA — ID · CIC · Cupo · Centro</div>
+        <div style={{position:"relative"}}>
+          <input value={busqTexto} onChange={e=>{
+            const v=e.target.value;
+            setBusqTexto(v);
+            if(v.length>=3){
+              // Buscar coincidencia en los campos de texto
+              const campos=["id","cic","cupo","centro"];
+              const encontrado=pacientes.find(p=>campos.some(c=>String(p[c]||"").toLowerCase().includes(v.toLowerCase())));
+              if(encontrado){
+                const campo=["id","cic","cupo","centro"].find(c=>String(encontrado[c]||"").toLowerCase().includes(v.toLowerCase()));
+                if(campo) add({campo,label:`${campo.toUpperCase()} contiene "${v}"`,tipo:"texto",valor:v});
+                setBusqTexto("");
+              }
+            }
+          }} placeholder="Escribe ID, CIC, cupo o centro (mín. 3 caracteres)…"
+            style={{width:"100%",padding:"6px 10px",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{fontSize:9,color:"#94A3B8",marginTop:4}}>Se añade como filtro automáticamente al escribir</div>
+      </div>
+
+      {/* Upload lista pacientes */}
+      <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#64748B"}}>📋 ANALIZAR LISTA DE PACIENTES (ID o CIC)</div>
+          <button onClick={()=>setShowLista(v=>!v)} style={{fontSize:9,padding:"2px 7px",border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#64748B"}}>
+            {showLista?"▲ Ocultar":"▼ Abrir"}
           </button>
-        ))}
+        </div>
+        {showLista&&(
+          <>
+            <textarea value={listaPacs} onChange={e=>setListaPacs(e.target.value)}
+              placeholder={"Pega aquí los IDs o CICs (uno por línea, o separados por coma)…"}
+              style={{width:"100%",height:70,padding:"6px 9px",border:"1px solid #E2E8F0",borderRadius:6,fontSize:10,fontFamily:"monospace",resize:"vertical",boxSizing:"border-box"}}/>
+            <button onClick={analizarLista} style={{padding:"4px 12px",background:"#1D4ED8",border:"none",borderRadius:5,color:"white",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>
+              Analizar
+            </button>
+            {listaResult&&(
+              <div style={{marginTop:6,fontSize:10}}>
+                <div style={{display:"flex",gap:8,marginBottom:4}}>
+                  <span style={{color:"#059669",fontWeight:700}}>✓ En BD: {listaResult.enBD.length}</span>
+                  <span style={{color:"#DC2626",fontWeight:700}}>✗ No encontrados: {listaResult.fuera.length}</span>
+                  <span style={{color:"#64748B"}}>Total: {listaResult.total}</span>
+                </div>
+                {listaResult.fuera.length>0&&(
+                  <div style={{display:"flex",gap:5}}>
+                    <button onClick={()=>{
+                      // Filtrar por los que SÍ están
+                      add({campo:"id",label:`Lista ${listaResult.enBD.length} pacientes`,tipo:"lista",valor:listaResult.enBD});
+                    }} style={{padding:"3px 8px",fontSize:9,background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:4,color:"#065F46",cursor:"pointer",fontWeight:700}}>
+                      ▶ Filtrar los {listaResult.enBD.length} encontrados
+                    </button>
+                    <button onClick={exportarFuera} style={{padding:"3px 8px",fontSize:9,background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:4,color:"#DC2626",cursor:"pointer",fontWeight:700}}>
+                      ⬇ Exportar no encontrados
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 
-  const FSelect=({campo,label,opciones})=>(
-    <div style={{marginBottom:6}}>
-      <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}}>{label}</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-        {opciones.map(o=>(
-          <button key={o} onClick={()=>addFiltro({campo,label:`${label}=${o}`,tipo:"select",valor:o})}
-            style={{padding:"2px 7px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}}>
-            {o}
-          </button>
-        ))}
-      </div>
+  // Componente checkbox multi-select para opciones
+  const CheckGroup = ({campo,opciones,labelFn,colorFn})=>(
+    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+      {opciones.map(o=>{
+        const yaFiltrado=filtros.some(f=>f.campo===campo&&f.valor===o);
+        const col=colorFn?colorFn(o):"#475569";
+        return (
+          <label key={o} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 6px",borderRadius:5,background:yaFiltrado?"#EFF6FF":"transparent",
+            border:yaFiltrado?"1px solid #BFDBFE":"1px solid transparent"}}>
+            <input type="checkbox" checked={yaFiltrado}
+              onChange={e=>{
+                if(e.target.checked) add({campo,label:`${campo}=${labelFn?labelFn(o):o}`,tipo:"select",valor:o});
+                else setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===o)));
+              }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+            <span style={{fontSize:11,color:yaFiltrado?"#1D4ED8":col,fontWeight:yaFiltrado?700:400}}>{labelFn?labelFn(o):o}</span>
+          </label>
+        );
+      })}
     </div>
   );
+
+  const Seccion=({k,label,badge,badgeColor,children,defaultOpen})=>{
+    if(!(k in expanded)&&defaultOpen) expanded[k]=true;
+    return (
+      <div style={{border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden",marginBottom:6}}>
+        <div onClick={()=>toggle(k)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 11px",background:"#F8FAFC",cursor:"pointer",userSelect:"none"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:11,fontWeight:700,color:"#1E293B"}}>{label}</span>
+            {badge&&<span style={{fontSize:8,background:badgeColor||"#DBEAFE",color:badgeColor?"white":"#1D4ED8",padding:"1px 5px",borderRadius:3,fontWeight:700}}>{badge}</span>}
+          </div>
+          <span style={{fontSize:9,color:"#94A3B8"}}>{expanded[k]?"▲":"▼"}</span>
+        </div>
+        {expanded[k]&&<div style={{padding:"10px 11px"}}>{children}</div>}
+      </div>
+    );
+  };
 
   return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-      {/* COLUMNA 1: DATOS BÁSICOS */}
-      <div>
-        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📋 Datos Básicos <span style={{background:"#D1FAE5",color:"#065F46",padding:"1px 6px",borderRadius:3}}>✅ Carga inicial</span></div>
+    <div style={{display:"flex",flexDirection:"column",gap:0}}>
+      <BarraFiltros/>
+      <BarraBusqueda/>
 
-        <Seccion k="sexo" label="Sexo">
-          <FBool campo="sexo" label="Sexo"/>
-          <div style={{display:"flex",gap:4}}>
-            {["H","M"].map(v=><button key={v} onClick={()=>addFiltro({campo:"sexo",label:`Sexo = ${v==="H"?"Hombre":"Mujer"}`,tipo:"select",valor:v})} style={{flex:1,padding:"5px",fontSize:11,border:"1px solid #E2E8F0",borderRadius:5,background:v==="H"?"#EFF6FF":"#FDF2F8",cursor:"pointer",color:v==="H"?"#1D4ED8":"#BE185D",fontWeight:600}}>{v==="H"?"♂ Hombre":"♀ Mujer"}</button>)}
+      {/* 3 COLUMNAS */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+
+        {/* ── COLUMNA 1: DATOS BÁSICOS ── */}
+        <div>
+          <div style={{fontSize:9,fontWeight:800,color:"#94A3B8",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #E2E8F0"}}>
+            📋 Datos Básicos
           </div>
-        </Seccion>
 
-        <Seccion k="osi" label="OSI">
-          <FSelect campo="osi" label="OSI" opciones={["01 OSID","02 OSIT","03 RESTO OSI"]}/>
-        </Seccion>
+          {/* SEXO */}
+          <Seccion k="sexo" label="Sexo">
+            <div style={{display:"flex",gap:6}}>
+              {[["H","♂ Hombre","#1D4ED8","#EFF6FF"],["M","♀ Mujer","#BE185D","#FDF2F8"]].map(([v,l,c,bg])=>{
+                const on=filtros.some(f=>f.campo==="sexo"&&f.valor===v);
+                return <button key={v} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo==="sexo"&&f.valor===v))):add({campo:"sexo",label:`Sexo = ${l}`,tipo:"select",valor:v})}
+                  style={{flex:1,padding:"6px",fontSize:11,border:`2px solid ${on?c:"#E2E8F0"}`,borderRadius:6,background:on?bg:"white",cursor:"pointer",color:on?c:"#94A3B8",fontWeight:on?700:400}}>
+                  {l}
+                </button>;
+              })}
+            </div>
+          </Seccion>
 
-        <Seccion k="centro" label="Centro de Salud">
-          <FSelect campo="centro" label="Centro" opciones={CENTROS_ALL}/>
-        </Seccion>
+          {/* EDAD */}
+          <Seccion k="edad" label="Edad">
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {[["< 65",0,64],["65–74",65,74],["75–84",75,84],["85–94",85,94],["≥ 95",95,150]].map(([l,mn,mx])=>{
+                const on=filtros.some(f=>f.campo==="edad"&&f.min===mn);
+                return <button key={l} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo==="edad"&&f.min===mn))):add({campo:"edad",label:`Edad ${l}`,tipo:"range",min:mn,max:mx})}
+                  style={{padding:"3px 9px",fontSize:10,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,borderRadius:5,background:on?"#EFF6FF":"white",color:on?"#1D4ED8":"#475569",cursor:"pointer",fontWeight:on?700:400}}>
+                  {l}
+                </button>;
+              })}
+            </div>
+          </Seccion>
 
-        <Seccion k="bloque" label="Bloque Ref. PCRON" badge="04-13-03-02">
-          <FSelect campo="bloque" label="Bloque" opciones={BLOQUES_PCRON}/>
-        </Seccion>
+          {/* OSI */}
+          <Seccion k="osi" label="OSI" defaultOpen>
+            <CheckGroup campo="osi" opciones={["01 OSID","02 OSIT","03 RESTO OSI"]}
+              colorFn={o=>o==="01 OSID"?"#1D4ED8":o==="02 OSIT"?"#059669":"#64748B"}/>
+            {/* Botones para marcar la OSI seleccionada para filtrar centros */}
+            <div style={{marginTop:6,fontSize:9,color:"#94A3B8"}}>
+              Seleccionar OSI para filtrar centros:
+              <div style={{display:"flex",gap:4,marginTop:3}}>
+                {["01 OSID","02 OSIT","03 RESTO OSI"].map(o=>(
+                  <button key={o} onClick={()=>setOsiSel(p=>p.includes(o)?p.filter(x=>x!==o):[...p,o])}
+                    style={{padding:"2px 6px",fontSize:8,border:`1px solid ${osiSel.includes(o)?"#3B82F6":"#E2E8F0"}`,borderRadius:4,background:osiSel.includes(o)?"#EFF6FF":"white",color:osiSel.includes(o)?"#1D4ED8":"#94A3B8",cursor:"pointer"}}>
+                    {o}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Seccion>
 
-        <Seccion k="gip" label="Programas GIP" badge="Carga inicial">
-          <FBool campo="gip_ap"     label="GIP AP (04-12-05-02)"/>
-          <FBool campo="gip_hosp"   label="GIP PCRON Hosp. (04-13-09-01)"/>
-          <FBool campo="gip_osarean"label="GIP OSAREAN (04-15-09-01)"/>
-        </Seccion>
-      </div>
+          {/* CENTROS */}
+          <Seccion k="centro" label={`Centro de Salud ${osiSel.length>0?"(filtrado por OSI)":""}`} defaultOpen>
+            <input value={centroTxt} onChange={e=>setCentroTxt(e.target.value)}
+              placeholder="Buscar centro…"
+              style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
+            <div style={{maxHeight:160,overflowY:"auto"}}>
+              <CheckGroup campo="centro" opciones={centrosFiltrados}/>
+            </div>
+            {centrosFiltrados.length===0&&<div style={{fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>Sin centros disponibles</div>}
+          </Seccion>
 
-      {/* COLUMNA 2: CARACTERÍSTICAS */}
-      <div>
-        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>🏷️ Características</div>
+          {/* CUPOS */}
+          <Seccion k="cupo" label={`Código Cupo ${centrosSel.length>0?"(filtrado por centro)":""}`}>
+            <div style={{maxHeight:140,overflowY:"auto"}}>
+              <CheckGroup campo="cupo" opciones={cuposDisp.slice(0,50)}/>
+            </div>
+            {cuposDisp.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {cuposDisp.length-50} más. Selecciona un centro para filtrar.</div>}
+          </Seccion>
 
-        <Seccion k="pob" label="Grupo de Población">
-          <FSelect campo="pob" label="Grupo" opciones={Object.keys(POB_DEF)}/>
-        </Seccion>
+          {/* MÉDICO REFERENCIA */}
+          <Seccion k="medico" label="Médico Referencia PCRON">
+            <div style={{maxHeight:130,overflowY:"auto"}}>
+              <CheckGroup campo="medico" opciones={medicosDisp.slice(0,40)}/>
+            </div>
+          </Seccion>
 
-        <Seccion k="perfiles" label="Perfiles">
-          {CARACTS_DEF.map(c=><FBool key={c.k} campo={c.k} label={c.l}/>)}
-        </Seccion>
+          {/* BLOQUE CCEE */}
+          <Seccion k="bloque" label="Bloque CCEE Referencia">
+            <CheckGroup campo="bloque" opciones={BLOQUES_PCRON}/>
+          </Seccion>
 
-        <Seccion k="may85" label="Mayor 85">
-          <FBool campo="may85" label="Mayor 85 años"/>
-        </Seccion>
-
-        <Seccion k="top" label="TOP Adecuación %">
-          <div style={{fontSize:11,color:"#64748B",marginBottom:6}}>Rango de adecuación TOP</div>
-          <div style={{display:"flex",gap:4}}>
-            {[["≥ 80 (Bueno)","≥80",p=>p.top_adec>=80],["60–79 (Medio)","60-79",p=>p.top_adec>=60&&p.top_adec<80],["< 60 (Bajo)","<60",p=>p.top_adec<60]].map(([l,v])=>(
-              <button key={v} onClick={()=>addFiltro({campo:"top_adec",label:`TOP ${v}%`,tipo:"range",min:v.startsWith("≥")?parseInt(v.slice(1)):v.startsWith("<")?0:60,max:v.startsWith("≥")?100:v.startsWith("<")?59:79})}
-                style={{flex:1,padding:"4px 6px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}}>{l}</button>
+          {/* GIP */}
+          <Seccion k="gip" label="Programas GIP">
+            {[["gip_ap","GIP AP"],["gip_hosp","GIP PCRON Hosp."],["gip_osarean","GIP OSAREAN"]].map(([campo,label])=>(
+              <div key={campo} style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
+                <span style={{fontSize:11,flex:1,color:"#475569"}}>{label}</span>
+                {[["Sí",true,"#059669"],["No",false,"#DC2626"]].map(([l,v,c])=>{
+                  const on=filtros.some(f=>f.campo===campo&&f.valor===v);
+                  return <button key={l} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===v))):add({campo,label:`${label} = ${l}`,tipo:"bool",valor:v})}
+                    style={{padding:"2px 8px",fontSize:10,border:`1px solid ${on?c:"#E2E8F0"}`,borderRadius:4,background:on?c+"15":"white",color:on?c:"#94A3B8",cursor:"pointer",fontWeight:on?700:400}}>
+                    {l}
+                  </button>;
+                })}
+              </div>
             ))}
-          </div>
-        </Seccion>
-      </div>
-
-      {/* COLUMNA 3: CRITERIOS BAJO DEMANDA */}
-      <div>
-        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📦 Criterios Clínicos</div>
-        <div style={{padding:"8px 10px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:7,marginBottom:8,fontSize:10,color:"#065F46"}}>
-          ✅ Médico/Bloque PCRON y GIP ya disponibles en carga inicial
+          </Seccion>
         </div>
 
-        {GRUPOS_CRITERIOS.map(g=>{
-          const loaded=loadedGrupos.includes(g.id);
-          return (
-            <Seccion key={g.id} k={`crit_${g.id}`} label={g.label} badge={loaded?"Cargado":"📦 No cargado"}>
-              {!loaded ? (
-                <div style={{textAlign:"center",padding:"12px 0"}}>
-                  <div style={{fontSize:11,color:"#94A3B8",marginBottom:8}}>Este grupo de criterios no está descargado</div>
-                  <button onClick={()=>onLoadGrupo(g.id, pacientes.slice(0,5000).map(p=>p.id))}
-                    style={{padding:"6px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                    📦 Cargar criterios
-                  </button>
+        {/* ── COLUMNA 2: CARACTERÍSTICAS ── */}
+        <div>
+          <div style={{fontSize:9,fontWeight:800,color:"#94A3B8",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #E2E8F0"}}>
+            🏷️ Características · Calidad
+          </div>
+
+          {/* POBLACIÓN */}
+          <Seccion k="pob" label="Grupo de Población" defaultOpen>
+            <CheckGroup campo="pob" opciones={Object.keys(POB_DEF)} colorFn={o=>POB_DEF[o]?.bg||"#475569"}/>
+          </Seccion>
+
+          {/* CARACTERÍSTICAS / PERFILES */}
+          <Seccion k="perfiles" label="Características / Perfiles" defaultOpen>
+            {CARACTS_DEF.map(c=>{
+              const on=filtros.some(f=>f.campo===c.k&&f.valor===true);
+              return (
+                <label key={c.k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 6px",borderRadius:5,marginBottom:2,
+                  background:on?c.c+"10":"transparent",border:on?`1px solid ${c.c}30`:"1px solid transparent"}}>
+                  <input type="checkbox" checked={on}
+                    onChange={e=>{
+                      if(e.target.checked) add({campo:c.k,label:`Perfil: ${c.l}`,tipo:"bool",valor:true});
+                      else setFiltros(p=>p.filter(f=>!(f.campo===c.k&&f.valor===true)));
+                    }} style={{cursor:"pointer",accentColor:c.c}}/>
+                  <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:c.c,flexShrink:0}}/>
+                  <span style={{fontSize:11,color:on?c.c:"#475569",fontWeight:on?700:400}}>{c.l}</span>
+                </label>
+              );
+            })}
+          </Seccion>
+
+          {/* ÍNDICES */}
+          <Seccion k="indices" label="Índices de Complejidad">
+            {[
+              ["compl","Complejidad", 20,OSI_STATS.top_media/5,OSI_STATS.top_p75/5],
+              ["co",   "Comorbilidad",10,3,6],
+              ["fr",   "Frecuentación",10,3,6],
+            ].map(([campo,lbl,max,media,p75])=>(
+              <div key={campo} style={{marginBottom:8}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#475569",marginBottom:3}}>{lbl}</div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {[
+                    [`> P75 (>${p75.toFixed(0)})`, {min:p75,max:999},"#059669"],
+                    [`> Media (>${media.toFixed(0)})`,{min:media,max:999},"#D97706"],
+                    [`< Media (<${media.toFixed(0)})`,{min:0,max:media},"#3B82F6"],
+                  ].map(([l,rng,c])=>{
+                    const on=filtros.some(f=>f.campo===campo&&f.min===rng.min);
+                    return <button key={l} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.min===rng.min))):add({campo,label:`${lbl} ${l}`,tipo:"range",...rng})}
+                      style={{padding:"2px 8px",fontSize:9,border:`1px solid ${on?c:"#E2E8F0"}`,borderRadius:4,background:on?c+"15":"white",color:on?c:"#64748B",cursor:"pointer",fontWeight:on?700:400}}>
+                      {l}
+                    </button>;
+                  })}
                 </div>
-              ) : (
-                g.keys.map(k=><FBool key={k} campo={k} label={k.replace("crit_","").replace(/_/g," ")}/>)
-              )}
-            </Seccion>
-          );
-        })}
-
-        {/* FILTROS ACTIVOS */}
-        {filtros.length>0&&(
-          <div style={{marginTop:12,padding:"10px 12px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:9}}>
-            <div style={{fontSize:10,fontWeight:700,color:"#1D4ED8",marginBottom:6}}>FILTROS ACTIVOS ({filtros.length})</div>
-            {filtros.map(f=>(
-              <div key={f.id} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
-                <select value={f.logica} onChange={e=>updateLogica(f.id,e.target.value)}
-                  style={{fontSize:9,fontWeight:700,padding:"1px 3px",borderRadius:3,border:"none",background:logicaColor[f.logica]+"20",color:logicaColor[f.logica],cursor:"pointer"}}>
-                  {["Y","O","NO"].map(l=><option key={l} value={l}>{l}</option>)}
-                </select>
-                <span style={{fontSize:10,flex:1,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.label}</span>
-                <button onClick={()=>removeFiltro(f.id)} style={{background:"none",border:"none",color:"#94A3B8",cursor:"pointer",fontSize:13,padding:0}}>×</button>
               </div>
             ))}
-            <div style={{borderTop:"1px solid #BFDBFE",marginTop:8,paddingTop:8,display:"flex",gap:6}}>
-              <input value={saveName} onChange={e=>setSaveName(e.target.value)} placeholder="Nombre del filtro…"
-                style={{flex:1,padding:"4px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,fontFamily:"inherit"}}/>
-              <button onClick={()=>{if(saveName){setSavedFiltros(p=>[...p,{name:saveName,filtros:[...filtros]}]);setSaveName("");}}}
-                style={{padding:"4px 10px",background:"#059669",border:"none",borderRadius:5,color:"white",fontSize:11,cursor:"pointer",fontWeight:700}}>Guardar</button>
-              <button onClick={()=>setFiltros([])}
-                style={{padding:"4px 10px",background:"#DC2626",border:"none",borderRadius:5,color:"white",fontSize:11,cursor:"pointer"}}>Limpiar</button>
+          </Seccion>
+
+          {/* AUDITORÍA */}
+          <Seccion k="audit" label="Auditoría de Calidad">
+            <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:5}}>Por color global</div>
+            <div style={{display:"flex",gap:5,marginBottom:10}}>
+              {[["VERDE","#059669","#D1FAE5"],["AMARILLO","#D97706","#FEF3C7"],["NARANJA","#EA580C","#FFF7ED"],["ROJO","#DC2626","#FEE2E2"]].map(([col,c,bg])=>{
+                const on=filtros.some(f=>f.campo==="audit_color"&&f.valor===col);
+                return <button key={col} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo==="audit_color"&&f.valor===col))):add({campo:"audit_color",label:`Auditoría ${col}`,tipo:"select",valor:col})}
+                  style={{flex:1,padding:"5px 4px",fontSize:9,fontWeight:700,border:`2px solid ${on?c:"#E2E8F0"}`,borderRadius:5,background:on?bg:"white",color:on?c:"#94A3B8",cursor:"pointer"}}>
+                  {col}
+                </button>;
+              })}
             </div>
-            <div style={{marginTop:4,fontSize:10,color:"#1D4ED8",fontWeight:700}}>→ {nFmt(nFiltrado)} pacientes cumplen los filtros</div>
-          </div>
-        )}
+            <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:5}}>Con pendientes</div>
+            {[["Con pendientes","conPend",true],["Sin pendientes","conPend",false]].map(([l,campo,v])=>{
+              const on=filtros.some(f=>f.campo===campo&&f.valor===v);
+              return <button key={l} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===v))):add({campo,label:l,tipo:"bool_pend",valor:v})}
+                style={{display:"block",width:"100%",marginBottom:4,padding:"4px 9px",fontSize:10,border:`1px solid ${on?"#D97706":"#E2E8F0"}`,borderRadius:5,background:on?"#FEF3C7":"white",color:on?"#92400E":"#475569",cursor:"pointer",fontWeight:on?700:400,textAlign:"left"}}>
+                {on?"✓ ":""}{l}
+              </button>;
+            })}
+          </Seccion>
 
-        {savedFiltros.length>0&&(
-          <div style={{marginTop:8}}>
-            <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:5}}>FILTROS GUARDADOS</div>
-            {savedFiltros.map((sf,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
-                <button onClick={()=>setFiltros(sf.filtros)} style={{flex:1,padding:"4px 8px",background:"white",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,cursor:"pointer",color:"#475569",textAlign:"left"}}>
-                  📂 {sf.name}
-                </button>
-                <button onClick={()=>setSavedFiltros(p=>p.filter((_,j)=>j!==i))} style={{padding:"2px 7px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:4,fontSize:11,cursor:"pointer",color:"#991B1B"}}>×</button>
-              </div>
-            ))}
+          {/* PENDIENTES ESPECÍFICOS */}
+          <Seccion k="pend" label="Elementos Pendientes (auditoría)">
+            {pendientesDisp.length===0
+              ? <div style={{fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>No hay pendientes en la población cargada</div>
+              : <div style={{maxHeight:160,overflowY:"auto"}}>
+                  {pendientesDisp.map(p=>{
+                    const on=filtros.some(f=>f.campo==="audit_pend_item"&&f.valor===p);
+                    return (
+                      <label key={p} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 5px",borderRadius:4,marginBottom:2,
+                        background:on?"#FEF3C7":"transparent",border:on?"1px solid #FCD34D":"1px solid transparent"}}>
+                        <input type="checkbox" checked={on}
+                          onChange={e=>{
+                            if(e.target.checked) add({campo:"audit_pend_item",label:`Pendiente: ${p}`,tipo:"pend_item",valor:p});
+                            else setFiltros(x=>x.filter(f=>!(f.campo==="audit_pend_item"&&f.valor===p)));
+                          }} style={{cursor:"pointer",accentColor:"#D97706"}}/>
+                        <span style={{fontSize:10,color:on?"#92400E":"#475569",fontWeight:on?700:400}}>{p}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+            }
+          </Seccion>
+        </div>
+
+        {/* ── COLUMNA 3: CRITERIOS CLÍNICOS ── */}
+        <div>
+          <div style={{fontSize:9,fontWeight:800,color:"#94A3B8",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #E2E8F0"}}>
+            📦 Criterios Clínicos
           </div>
-        )}
+
+          {GRUPOS_CRITERIOS.map(g=>{
+            const loaded=loadedGrupos.includes(g.id);
+            return (
+              <Seccion key={g.id} k={`crit_${g.id}`} label={g.label}
+                badge={loaded?"✓ Cargado":"Sin cargar"}
+                badgeColor={loaded?"#059669":"#94A3B8"}>
+                {!loaded ? (
+                  <div style={{textAlign:"center",padding:"10px 0"}}>
+                    <div style={{fontSize:10,color:"#94A3B8",marginBottom:8}}>Datos no descargados</div>
+                    <button onClick={()=>onLoadGrupo(g.id, pacientes.slice(0,5000).map(p=>p.id))}
+                      style={{padding:"5px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                      📦 Cargar criterios
+                    </button>
+                  </div>
+                ) : (
+                  g.keys.map(k=>{
+                    const on=filtros.some(f=>f.campo===k&&f.valor===true);
+                    return (
+                      <label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 5px",borderRadius:4,marginBottom:2,
+                        background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
+                        <input type="checkbox" checked={on}
+                          onChange={e=>{
+                            if(e.target.checked) add({campo:k,label:k.replace(/crit_/g,"").replace(/_/g," "),tipo:"bool",valor:true});
+                            else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.valor===true)));
+                          }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+                        <span style={{fontSize:10,color:on?"#1D4ED8":"#475569",fontWeight:on?700:400}}>{k.replace(/crit_/g,"").replace(/_/g," ")}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </Seccion>
+            );
+          })}
+
+          {/* Filtros guardados */}
+          {savedFiltros.length>0&&(
+            <div style={{marginTop:10,border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden"}}>
+              <div style={{padding:"7px 11px",background:"#F8FAFC",fontSize:11,fontWeight:700,color:"#1E293B"}}>📂 Filtros Guardados</div>
+              <div style={{padding:"8px 10px"}}>
+                {savedFiltros.map((sf,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                    <button onClick={()=>setFiltros(sf.filtros)}
+                      style={{flex:1,padding:"4px 9px",background:"white",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,cursor:"pointer",color:"#475569",textAlign:"left",fontFamily:"inherit"}}>
+                      ▶ {sf.name} <span style={{color:"#94A3B8",fontSize:9}}>({sf.filtros.length} filtros · {sf.fecha||""})</span>
+                    </button>
+                    <button onClick={()=>setSavedFiltros(p=>p.filter((_,j)=>j!==i))}
+                      style={{padding:"3px 7px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:4,fontSize:11,cursor:"pointer",color:"#991B1B"}}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2401,55 +2795,108 @@ function App() {
       </div>
 
       {/* HERO DARK */}
-      <div style={{background:"linear-gradient(160deg,#0B1628 0%,#112240 55%,#0D3458 100%)",padding:"16px 24px 0"}}>
-        {/* CONTADOR */}
-        <div style={{display:"flex",gap:12,marginBottom:12}}>
-          <div style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(59,130,246,0.4)",borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:20}}>
+      <div style={{background:"linear-gradient(160deg,#0B1628 0%,#112240 55%,#0D3458 100%)",padding:"14px 24px 0"}}>
+
+        <div style={{display:"flex",gap:12,marginBottom:12,alignItems:"stretch"}}>
+
+          {/* BLOQUE IZQUIERDO — contador */}
+          <div style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(59,130,246,0.4)",borderRadius:12,padding:"14px 22px",display:"flex",alignItems:"center",gap:20,flexShrink:0}}>
             <div>
               <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}}>PACIENTES EN VISTA</div>
               <div style={{color:"white",fontSize:52,fontWeight:900,lineHeight:1,letterSpacing:-2}}>{nFmt(pacientesFiltrados.length)}</div>
-              <div style={{color:"#64748B",fontSize:11,marginTop:2}}>de {nFmt(pacientes.length)} en base de datos</div>
+              <div style={{color:"#64748B",fontSize:11,marginTop:2}}>de {nFmt(pacientes.length)} cargados · {nFmt(META.totalBD)} en BD</div>
             </div>
-            <div style={{width:1,height:60,background:"rgba(255,255,255,0.1)"}}/>
+            <div style={{width:1,alignSelf:"stretch",background:"rgba(255,255,255,0.1)"}}/>
             <div>
-              <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}}>% DEL TOTAL</div>
+              <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}}>% DEL TOTAL BD</div>
               <div style={{color:"#38BDF8",fontSize:40,fontWeight:800,lineHeight:1}}>{pctTotal}%</div>
+              <div style={{color:"#475569",fontSize:10,marginTop:2}}>{META.fechaAct}</div>
             </div>
-            {filtros.length>0&&(
-              <>
-                <div style={{width:1,height:60,background:"rgba(255,255,255,0.1)"}}/>
-                <div style={{flex:1}}>
-                  <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:5}}>FILTROS ACTIVOS</div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                    {filtros.map(f=>(
-                      <span key={f.id} style={{fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:600,
-                        background:{Y:"#1D4ED820",O:"#D9770620",NO:"#DC262620"}[f.logica],
-                        color:{Y:"#93C5FD",O:"#FCD34D",NO:"#FCA5A5"}[f.logica],
-                        border:`1px solid ${{Y:"rgba(59,130,246,0.3)",O:"rgba(217,119,6,0.3)",NO:"rgba(220,38,38,0.3)"}[f.logica]}`}}>
-                        <span style={{fontWeight:800}}>{f.logica}</span> {f.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
           </div>
 
-          {/* MINI HISTOGRAM */}
-          <div style={{width:280,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"10px 12px"}}>
-            <div style={{color:"#93C5FD",fontSize:8,fontWeight:700,letterSpacing:1.2,marginBottom:6}}>DISTRIBUCIÓN POR GRUPO</div>
-            <div style={{display:"flex",gap:3,alignItems:"flex-end",height:40}}>
-              {Object.entries(POB_DEF).map(([pob,c])=>{
-                const n=pacientesFiltrados.filter(p=>p.pob===pob).length;
-                const maxN=Math.max(...Object.keys(POB_DEF).map(k=>pacientesFiltrados.filter(p=>p.pob===k).length),1);
-                return (
-                  <div key={pob} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                    <div style={{width:"100%",height:Math.max(3,n/maxN*34)+"%",background:c.bg,borderRadius:2,transition:"height .4s"}}/>
-                    <div style={{color:c.bg,fontSize:7,fontWeight:700}}>{n>0?n:""}</div>
-                  </div>
-                );
-              })}
+          {/* BLOQUE DERECHO — filtros activos + acciones */}
+          <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"12px 16px",display:"flex",flexDirection:"column",justifyContent:"space-between",minWidth:0}}>
+
+            {/* Cabecera con acciones */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.4}}>
+                🎛 FILTROS ACTIVOS {filtros.length>0&&<span style={{background:"#3B82F6",color:"white",borderRadius:10,padding:"1px 6px",marginLeft:4,fontSize:9}}>{filtros.length}</span>}
+              </div>
+              <div style={{display:"flex",gap:5}}>
+                {/* Limpiar */}
+                {filtros.length>0&&(
+                  <button onClick={()=>setFiltros([])}
+                    style={{padding:"4px 10px",fontSize:10,fontWeight:700,border:"1px solid rgba(220,38,38,0.4)",borderRadius:5,background:"rgba(220,38,38,0.1)",color:"#FCA5A5",cursor:"pointer"}}>
+                    ✕ Limpiar
+                  </button>
+                )}
+                {/* Guardar filtros */}
+                {filtros.length>0&&(
+                  <button onClick={()=>{
+                    const name=prompt("Nombre para este filtro:");
+                    if(name) setSavedFiltros(p=>[...p,{name,filtros:[...filtros],fecha:new Date().toLocaleDateString("es-ES")}]);
+                  }}
+                    style={{padding:"4px 10px",fontSize:10,fontWeight:700,border:"1px solid rgba(59,130,246,0.4)",borderRadius:5,background:"rgba(59,130,246,0.1)",color:"#93C5FD",cursor:"pointer"}}>
+                    💾 Guardar
+                  </button>
+                )}
+                {/* Ejecutar filtro guardado */}
+                {savedFiltros.length>0&&(
+                  <select onChange={e=>{
+                    if(!e.target.value) return;
+                    const sf=savedFiltros.find(s=>s.name===e.target.value);
+                    if(sf){setFiltros(sf.filtros);setTab("DETALLE");}
+                    e.target.value="";
+                  }} style={{padding:"4px 8px",fontSize:10,border:"1px solid rgba(255,255,255,0.15)",borderRadius:5,background:"rgba(255,255,255,0.08)",color:"#CBD5E1",cursor:"pointer",maxWidth:160}}>
+                    <option value="">▶ Ejecutar guardado…</option>
+                    {savedFiltros.map(s=><option key={s.name} value={s.name}>{s.name}</option>)}
+                  </select>
+                )}
+                {/* Ir a filtros */}
+                <button onClick={()=>setTab("FILTROS")}
+                  style={{padding:"4px 10px",fontSize:10,fontWeight:700,border:"1px solid rgba(255,255,255,0.15)",borderRadius:5,background:"rgba(255,255,255,0.06)",color:"#94A3B8",cursor:"pointer"}}>
+                  + Añadir filtro
+                </button>
+              </div>
             </div>
+
+            {/* Chips de filtros activos */}
+            {filtros.length>0 ? (
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,alignContent:"flex-start"}}>
+                {filtros.map(f=>(
+                  <span key={f.id} style={{
+                    display:"inline-flex",alignItems:"center",gap:4,
+                    fontSize:10,padding:"3px 8px",borderRadius:5,fontWeight:600,
+                    background:{Y:"rgba(29,78,216,0.2)",O:"rgba(217,119,6,0.2)",NO:"rgba(220,38,38,0.2)"}[f.logica]||"rgba(255,255,255,0.1)",
+                    color:{Y:"#93C5FD",O:"#FCD34D",NO:"#FCA5A5"}[f.logica]||"#CBD5E1",
+                    border:`1px solid ${{Y:"rgba(59,130,246,0.3)",O:"rgba(217,119,6,0.3)",NO:"rgba(220,38,38,0.3)"}[f.logica]||"rgba(255,255,255,0.1)"}`}}>
+                    <span style={{fontWeight:900,fontSize:9,opacity:.8}}>{f.logica}</span>
+                    {f.label}
+                    <button onClick={()=>setFiltros(p=>p.filter(x=>x.id!==f.id))}
+                      style={{background:"none",border:"none",color:"inherit",cursor:"pointer",padding:"0 0 0 2px",fontSize:12,lineHeight:1,opacity:.7}}>×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div style={{flex:1,display:"flex",alignItems:"center",gap:16}}>
+                <div style={{color:"#475569",fontSize:11,fontStyle:"italic"}}>Sin filtros — mostrando todos los pacientes</div>
+                {/* Atajos rápidos de filtro */}
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {[
+                    {l:"♂ Hombres",    f:{campo:"sexo",  label:"Sexo = H",       tipo:"select",valor:"H",    logica:"Y"}},
+                    {l:"♀ Mujeres",    f:{campo:"sexo",  label:"Sexo = M",       tipo:"select",valor:"M",    logica:"Y"}},
+                    {l:"GIP AP",       f:{campo:"gip_ap",label:"GIP AP = Sí",    tipo:"bool",  valor:true,   logica:"Y"}},
+                    {l:"≥ 85 años",    f:{campo:"edad",  label:"Edad ≥ 85",      tipo:"range", min:85,max:150,logica:"Y"}},
+                    {l:"Paliativos",   f:{campo:"pal",   label:"Paliativo = Sí", tipo:"bool",  valor:true,   logica:"Y"}},
+                  ].map(({l,f})=>(
+                    <button key={l} onClick={()=>setFiltros(p=>[...p,{...f,id:Date.now()+Math.random()}])}
+                      style={{padding:"3px 8px",fontSize:9,fontWeight:700,border:"1px solid rgba(255,255,255,0.12)",borderRadius:4,background:"rgba(255,255,255,0.05)",color:"#94A3B8",cursor:"pointer"}}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2602,7 +3049,7 @@ function App() {
         )}
         {tab==="FILTROS"&&(
           <TabFiltros filtros={filtros} setFiltros={setFiltros} savedFiltros={savedFiltros} setSavedFiltros={setSavedFiltros}
-            pacientes={pacientes} loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo}/>
+            pacientes={pacientes} loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo} setTab={setTab}/>
         )}
         {tab==="ESTADÍSTICAS"&&<TabEstadisticas pacientes={pacientesFiltrados}/>}
         {tab==="DETALLE"&&(
