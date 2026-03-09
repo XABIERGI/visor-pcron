@@ -3,1177 +3,1602 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VISOR PCRON — Osakidetza</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
-<link rel="dns-prefetch" href="https://cdn.jsdelivr.net"/>
 <link rel="preconnect" href="https://qbtdbnilmrvjmwoefwmw.supabase.co"/>
-<title>VISOR PCRON</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:system-ui,-apple-system,sans-serif;background:#F0F4F8;min-height:100vh;}
-input,button,select{font-family:inherit;}
-#boot{position:fixed;inset:0;background:linear-gradient(135deg,#060E1E,#0F2444);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;z-index:9999;}
-#boot-bar{width:280px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;margin-top:16px;overflow:hidden;}
-#boot-fill{height:100%;width:5%;background:linear-gradient(90deg,#3B82F6,#06B6D4);border-radius:3px;transition:width .3s;}
-.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:#3B82F6;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px;}
+body{font-family:'IBM Plex Sans',system-ui,sans-serif;background:#F0F4F8;min-height:100vh;}
+input,button,select,textarea{font-family:inherit;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:#F1F5F9;}
+::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
+#boot{position:fixed;inset:0;background:linear-gradient(135deg,#060E1E,#0F2444);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;z-index:9999;transition:opacity .5s;}
+#boot-bar{width:300px;height:7px;background:rgba(255,255,255,0.1);border-radius:4px;margin-top:16px;overflow:hidden;}
+#boot-fill{height:100%;width:3%;background:linear-gradient(90deg,#3B82F6,#06B6D4);border-radius:4px;transition:width .3s;}
+.spinner{width:44px;height:44px;border:3px solid rgba(255,255,255,0.1);border-top-color:#3B82F6;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px;}
 @keyframes spin{to{transform:rotate(360deg)}}
-::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
 </style>
 </head>
 <body>
-
 <div id="boot">
   <div class="spinner"></div>
-  <div style="font-size:22px;font-weight:900;letter-spacing:1px">VISOR PCRON</div>
+  <div style="font-size:24px;font-weight:900;letter-spacing:1px">VISOR PCRON</div>
   <div style="font-size:12px;color:#475569;margin-top:4px">Osakidetza · cargando…</div>
   <div id="boot-bar"><div id="boot-fill"></div></div>
   <div id="boot-msg" style="font-size:11px;color:#475569;margin-top:8px">Iniciando…</div>
 </div>
-
 <div id="root"></div>
 
 <script>
-const fill = document.getElementById('boot-fill');
-const msg  = document.getElementById('boot-msg');
-function setBar(p,t){fill.style.width=p+'%';msg.textContent=t;}
-
-// Carga scripts dinámicamente en orden
+const fill=document.getElementById('boot-fill');
+const msg=document.getElementById('boot-msg');
+function setBar(p,t){fill.style.width=p+'%';if(t)msg.textContent=t;}
 function loadScript(src,cb){
   const s=document.createElement('script');
-  s.src=src; s.onload=cb;
-  s.onerror=()=>{document.getElementById('boot').innerHTML='<div style="color:#FCA5A5;padding:20px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700">Sin conexión a internet</div><div style="font-size:12px;margin-top:8px;color:#94A3B8">Este archivo requiere internet para cargar React y Supabase.<br>Conéctate y recarga la página.</div></div>';};
+  s.src=src;
+  s.onload=cb;
+  s.onerror=()=>{msg.textContent='Error cargando '+src;};
   document.head.appendChild(s);
 }
-
-// Carga en paralelo — mucho más rápido
-setBar(10,'Cargando librerías…');
-const CDN = [
-  'https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',
-  'https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
-];
-let loaded = 0;
-CDN.forEach(src => {
-  const s = document.createElement('script');
-  s.src = src;
-  s.onload = () => {
-    loaded++;
-    setBar(10 + loaded * 25, loaded===1?'React listo…':loaded===2?'ReactDOM listo…':'Supabase listo…');
-    if (loaded === CDN.length) { setBar(90,'Iniciando app…'); setTimeout(initApp, 30); }
-  };
-  s.onerror = () => {
-    document.getElementById('boot').innerHTML = '<div style="color:#FCA5A5;padding:30px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700">Sin conexión a internet</div><div style="font-size:12px;margin-top:8px;color:#94A3B8">Conectate y recarga la página.</div></div>';
-  };
-  document.head.appendChild(s);
+setBar(5,'Cargando React…');
+loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',()=>{
+  setBar(25,'Cargando ReactDOM…');
+  loadScript('https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',()=>{
+    setBar(45,'Cargando Supabase…');
+    loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',()=>{
+      setBar(65,'Cargando Babel…');
+      loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
+        setBar(85,'Compilando app…');
+        setTimeout(()=>{
+          const script=document.getElementById('app');
+          const code=Babel.transform(script.textContent,{presets:['react']}).code;
+          const s=document.createElement('script');
+          s.textContent=code;
+          document.head.appendChild(s);
+        },50);
+      });
+    });
+  });
 });
 </script>
 
-<script id="appscript">
-function initApp(){
-  const {useState,useEffect,useMemo,useCallback,createElement:h,Fragment} = React;
+<script id="app" type="text/babel-raw">
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  // ── CONFIG ──────────────────────────────────────────────────
-  const SUPA_URL  = "https://qbtdbnilmrvjmwoefwmw.supabase.co";
-  const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidGRibmlsbXJ2am13b2Vmd213Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTIwNzcsImV4cCI6MjA4MzUyODA3N30.u_h9Qzk40ml_hWNIW00bGKSrCG4Y9SeUyAGllUGITic";
-  const sb = window.supabase.createClient(SUPA_URL, SUPA_ANON, {auth:{persistSession:false}});
+// ════════════════════════════════════════════════════════════════════════════
+// ❶  CONFIGURACIÓN — CAMBIAR ANTES DE DESPLEGAR
+// ════════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL   = "https://qbtdbnilmrvjmwoefwmw.supabase.co";
+const SUPABASE_ANON  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidGRibmlsbXJ2am13b2Vmd213Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTIwNzcsImV4cCI6MjA4MzUyODA3N30.u_h9Qzk40ml_hWNIW00bGKSrCG4Y9SeUyAGllUGITic";
+const GDRIVE_FOLDER  = "1u5yWwAqujqtR7ts9npVyAQyfMk63_lwD";  // ETL mensual Drive → Supabase
 
-  const META = {version:"v6.0",totalBD:97525,fuente:"Osabide Global · Osanaia · OAS",fecha:"03/03/2026 08:14"};
-  const BATCH = 1000;
-    const POB = {
-    "01 GERONTOLÓGICO":        {bg:"#7C3AED",lt:"#EDE9FE"},
-    "02 PALIATIVO":            {bg:"#DC2626",lt:"#FEE2E2"},
-    "03 DEPENDIENTE DOMICILIO":{bg:"#D97706",lt:"#FEF3C7"},
-    "04 HF HOSPITALARIO":      {bg:"#0891B2",lt:"#CFFAFE"},
-    "05 HF AP":                {bg:"#0284C7",lt:"#E0F2FE"},
-    "06 MAYOR COMORBILIDAD":   {bg:"#059669",lt:"#D1FAE5"},
-    "07 MAYOR SANO":           {bg:"#65A30D",lt:"#ECFCCB"},
-    "08 MAYOR 85 SANO":        {bg:"#78716C",lt:"#F5F5F4"},
-    "09 DEMOGRÁFICOS":         {bg:"#6B7280",lt:"#F3F4F6"},
-  };
-  const CARACTS = [
-    {k:"geron",l:"Gerontológico",c:"#7C3AED"},{k:"pal",l:"Paliativo",c:"#DC2626"},
-    {k:"dep",l:"Dependiente Dom.",c:"#D97706"},{k:"hfh",l:"HF Hospitalario",c:"#0891B2"},
-    {k:"hfap",l:"HF AP",c:"#0284C7"},{k:"comorb",l:"Comorbilidad",c:"#059669"},
-    {k:"sano",l:"Mayor Sano",c:"#65A30D"},{k:"may85",l:"Mayor 85",c:"#EA580C"},
-    {k:"demog",l:"Demográficos",c:"#6B7280"},{k:"polimed",l:"Polimedicado",c:"#9333EA"},
-    {k:"social",l:"Carga Social",c:"#BE185D"},
+// ── Supabase client ───────────────────────────────────────────────────────
+// Vite/CRA/Next.js: sustituye por: import { createClient } from '@supabase/supabase-js'
+let _supabaseClient = null;
+
+async function ensureSupabaseCDN() {
+  if (typeof window === "undefined") return false;
+  if (window.supabase && window.supabase.createClient) return true;
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
+async function getSupabase() {
+  if (_supabaseClient) return _supabaseClient;
+  const ok = await ensureSupabaseCDN();
+  if (ok && window.supabase && window.supabase.createClient) {
+    _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      db: { schema: "public" },
+      auth: { persistSession: false },
+    });
+  }
+  return _supabaseClient;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❷  CONSTANTES CLÍNICAS
+// ════════════════════════════════════════════════════════════════════════════
+const META = {
+  version:"v6.0", totalBD:97525,
+  fuente:"Osabide Global · Osanaia · OAS",
+  fechaAct:"03/03/2026 08:14",
+};
+
+const POB_DEF = {
+  "01 GERONTOLÓGICO":       {bg:"#7C3AED",lt:"#EDE9FE",short:"GERON"},
+  "02 PALIATIVO":           {bg:"#DC2626",lt:"#FEE2E2",short:"PAL"},
+  "03 DEPENDIENTE DOMICILIO":{bg:"#D97706",lt:"#FEF3C7",short:"DEP"},
+  "04 HF HOSPITALARIO":     {bg:"#0891B2",lt:"#CFFAFE",short:"HFH"},
+  "05 HF AP":               {bg:"#0284C7",lt:"#E0F2FE",short:"HFAP"},
+  "06 MAYOR COMORBILIDAD":  {bg:"#059669",lt:"#D1FAE5",short:"COMORB"},
+  "07 MAYOR SANO":          {bg:"#65A30D",lt:"#ECFCCB",short:"SANO"},
+  "08 MAYOR 85 SANO":       {bg:"#78716C",lt:"#F5F5F4",short:"M85"},
+  "09 DEMOGRÁFICOS":        {bg:"#6B7280",lt:"#F3F4F6",short:"DEMOG"},
+};
+
+const CARACTS_DEF = [
+  {k:"geron",  l:"Gerontológico",    c:"#7C3AED"},
+  {k:"pal",    l:"Paliativo",        c:"#DC2626"},
+  {k:"dep",    l:"Dependiente Dom.", c:"#D97706"},
+  {k:"hfh",    l:"HF Hospitalario",  c:"#0891B2"},
+  {k:"hfap",   l:"HF AP",            c:"#0284C7"},
+  {k:"comorb", l:"Comorbilidad",     c:"#059669"},
+  {k:"sano",   l:"Mayor Sano",       c:"#65A30D"},
+  {k:"may85",  l:"Mayor 85",         c:"#EA580C"},
+  {k:"demog",  l:"Demográficos",     c:"#6B7280"},
+  {k:"polimed",l:"Polimedicado",     c:"#9333EA"},
+  {k:"social", l:"Carga Social",     c:"#BE185D"},
+];
+
+// Criterios clínicos por perfil — columnas reales de Supabase
+const CRITERIOS_PERFIL = {
+  geron:[
+    {k:"crit_barthel_base",  l:"Barthel basal < 80"},
+    {k:"crit_barthel_actual",l:"Barthel actual < 60"},
+    {k:"crit_demencia",      l:"Demencia diagnosticada"},
+    {k:"crit_caidas",        l:"Caídas de repetición"},
+    {k:"crit_fragil",        l:"Frágil documentado"},
+  ],
+  pal:[
+    {k:"crit_episodio_pal",  l:"Episodio Paliativo activo"},
+    {k:"crit_necpal",        l:"NECPAL positivo"},
+    {k:"crit_frag_vig",      l:"FRAG VIG > 0,48"},
+    {k:"crit_plan_cuidados", l:"Plan de Cuidados actualizado"},
+  ],
+  dep:[
+    {k:"crit_barthel_base",  l:"Barthel basal < 80"},
+    {k:"crit_barthel_actual",l:"Barthel actual < 60"},
+    {k:"crit_episodio_dom",  l:"Episodio Crónico Domiciliario"},
+    {k:"crit_demencia",      l:"Demencia"},
+  ],
+  hfh:[
+    {k:"crit_reingresos",    l:"Reingresos ≥ 2 en 12 meses"},
+    {k:"crit_urg_n",         l:"Urgencias ≥ 3 en 12 meses"},
+    {k:"crit_ic",            l:"Insuficiencia Cardíaca"},
+    {k:"crit_epoc",          l:"EPOC severo"},
+    {k:"crit_estancia",      l:"Estancia hospitalaria > 10 días"},
+    {k:"crit_hd",            l:"Hospitalización a Domicilio"},
+  ],
+  hfap:[
+    {k:"crit_frec_ap_med",   l:"Frecuentación AP Médica > 25"},
+    {k:"crit_frec_ap_enf",   l:"Frecuentación AP Enfermería > 25"},
+  ],
+  comorb:[
+    {k:"crit_ic",            l:"Insuficiencia Cardíaca"},
+    {k:"crit_epoc",          l:"EPOC"},
+    {k:"crit_i_renal",       l:"Insuficiencia Renal"},
+    {k:"crit_hepatopatia",   l:"Hepatopatía crónica"},
+    {k:"crit_anemia",        l:"Anemia crónica"},
+    {k:"crit_pluripatologico",l:"Pluripatológico"},
+    {k:"crit_ulceras",       l:"Úlceras por presión"},
+  ],
+  polimed:[
+    {k:"crit_farmacos",      l:"Fármacos activos ≥ 7"},
+  ],
+  demog:[
+    {k:"crit_ppp",           l:"Gestión PPP activa"},
+    {k:"crit_fragil",        l:"Alerta Frágil"},
+    {k:"crit_pluripatologico",l:"Alerta Pluripatológico"},
+    {k:"crit_episodio_pal",  l:"Alerta Paliativo"},
+  ],
+};
+
+// Grupos de criterios para carga lazy (tal como en FILTROS)
+const GRUPOS_CRITERIOS = [
+  {id:"PPP",        label:"PPP",               keys:["crit_ppp","crit_episodio_pal","crit_fragil"]},
+  {id:"DEPENDENCIA",label:"DEPENDENCIA",        keys:["crit_barthel_base","crit_barthel_actual","crit_demencia","crit_caidas","crit_episodio_dom"]},
+  {id:"HFH",        label:"HF HOSPITALARIO",    keys:["crit_reingresos","crit_urg_n","crit_ic","crit_epoc","crit_estancia","crit_hd"]},
+  {id:"HFAP",       label:"HF AP",              keys:["crit_frec_ap_med","crit_frec_ap_enf"]},
+  {id:"COMORBILIDAD",label:"COMORBILIDAD",      keys:["crit_i_renal","crit_hepatopatia","crit_anemia","crit_pluripatologico","crit_ulceras"]},
+  {id:"PALIATIVO",  label:"PALIATIVO",           keys:["crit_necpal","crit_frag_vig","crit_plan_cuidados"]},
+  {id:"FARMACOS",   label:"POLIMEDICACIÓN",      keys:["crit_farmacos"]},
+];
+
+const OSI_STATS = {top_media:68,top_p75:82,audit_media:64,audit_p75:79};
+
+const BLOQUES_PCRON = ["01 AGIRRE C","02 VAQUERO","03 HIGUERA","04 COUTO","05 SANCHEZ","06 SANZ","07 ZUBELZU"];
+const CENTROS_ALL   = ["AIZARNAZABAL","LASARTE","HERNANI","ERRENTERIA","PASAIA","TOLOSA","EIBAR","ANDOAIN","AZPEITIA","ZARAUTZ"];
+const CUPOS_ALL     = ["25940","20187","20056","20100","20014","31001","20099","20015","20016","20017"];
+
+const ROLES_DEF = {
+  ADM:{label:"Administrador",  cic:true,  admin:true},
+  DIR:{label:"Dirección",      cic:true,  admin:false},
+  MAN:{label:"Mando Intermedio",cic:true, admin:false},
+  CEN:{label:"Centro/Jefatura",cic:false, admin:false},
+  PROFESIONAL:{label:"Profesional",cic:false,admin:false},
+};
+
+// Columnas básicas para SELECT inicial
+const BASIC_COLS = [
+  "id","cic","sexo","edad","osi","centro","cupo","medico","bloque",
+  "gip_ap","gip_hosp","gip_osarean","centro_geron",
+  "pob","geron","pal","dep","hfh","hfap","comorb","sano","may85","demog","polimed","social",
+  "compl","co","fr","top_adec","audit_adec","audit_pend",
+].join(",");
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❸  HELPERS
+// ════════════════════════════════════════════════════════════════════════════
+const pct  = (n,t) => t>0 ? ((n/t)*100).toFixed(1) : "0.0";
+const nFmt = n => Number(n).toLocaleString("es-ES");
+
+function applyFiltros(pacs, filtros) {
+  return pacs.filter(p => {
+    return filtros.every(f => {
+      const val = p[f.campo];
+      let match = false;
+      if (f.tipo==="bool")   match = f.valor ? Boolean(val) : !val;
+      else if (f.tipo==="select") match = val===f.valor;
+      else if (f.tipo==="range")  match = val>=f.min && val<=f.max;
+      else if (f.tipo==="text")   match = String(val||"").toLowerCase().includes(f.valor.toLowerCase());
+      return f.logica==="NO" ? !match : match;
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❹  CARGA DE DATOS DESDE SUPABASE
+// ════════════════════════════════════════════════════════════════════════════
+async function cargarTodosPacientes(onProgress) {
+  const sb = await getSupabase();
+  if (!sb) return [];
+  const batchSize = 1000;
+  let all = [], offset = 0, hasMore = true;
+  while (hasMore) {
+    const {data, error} = await sb
+      .from("PACIENTES")
+      .select('*')
+      .range(offset, offset + batchSize - 1);
+    if (error || !data) break;
+    const norm=data.map(r=>{const o={};Object.keys(r).forEach(k=>{o[k.toLowerCase()]=r[k];});return o;});
+    all = [...all, ...norm];
+    offset += batchSize;
+    onProgress(Math.min(98, Math.round(offset / META.totalBD * 100)));
+    hasMore = data.length === batchSize;
+  }
+  return all;
+}
+
+async function cargarCriteriosGrupo(grupo, ids) {
+  const sb = await getSupabase();
+  if (!sb) return {};
+  const keys = grupo.keys.join(",");
+  const {data, error} = await sb
+    .from("PACIENTES")
+    .select('*')
+    .in("id", ids.slice(0,1000));
+  if (error || !data) return {};
+  const map = {};
+  data.forEach(row => { map[row.id] = row; });
+  return map;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❺  MINI COMPONENTES COMPARTIDOS
+// ════════════════════════════════════════════════════════════════════════════
+function PobBadge({pob}) {
+  const c = POB_DEF[pob]||{bg:"#6B7280",lt:"#F3F4F6"};
+  return <span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:c.lt,color:c.bg,whiteSpace:"nowrap",border:`1px solid ${c.bg}30`}}>{pob}</span>;
+}
+
+function ProfileChips({patient}) {
+  const ac = CARACTS_DEF.filter(c=>patient[c.k]);
+  if (!ac.length) return <span style={{color:"#CBD5E1",fontSize:11}}>—</span>;
+  return (
+    <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+      {ac.map(c=>(
+        <span key={c.k} style={{padding:"2px 6px",borderRadius:3,fontSize:9,fontWeight:700,background:c.c+"20",color:c.c,border:`1px solid ${c.c}30`}}>
+          {c.l.split(" ")[0].toUpperCase()}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function BarRow({label,n,total,color}) {
+  const p=+pct(n,total);
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+      <div style={{width:130,fontSize:11,color:"#475569",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</div>
+      <div style={{flex:1,height:12,background:"#F1F5F9",borderRadius:6,overflow:"hidden"}}>
+        <div style={{height:"100%",width:p+"%",background:color,borderRadius:6,transition:"width .4s"}}/>
+      </div>
+      <div style={{width:32,fontSize:12,fontWeight:700,color,textAlign:"right"}}>{n}</div>
+      <div style={{width:38,fontSize:10,color:"#94A3B8",textAlign:"right"}}>{p}%</div>
+    </div>
+  );
+}
+
+function IndexBar({label,value,max,osi_media,osi_p75,color}) {
+  const pv=Math.min(value/max*100,100), pm=Math.min(osi_media/max*100,100), pp=Math.min(osi_p75/max*100,100);
+  const nivel=value>=osi_p75?"Bueno":value>=osi_media?"Medio":"Bajo";
+  const nc=value>=osi_p75?"#059669":value>=osi_media?"#D97706":"#DC2626";
+  return (
+    <div style={{marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+        <span style={{fontSize:12,fontWeight:700,color:"#1E293B"}}>{label}</span>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:20,fontWeight:800,color:nc}}>{value}%</span>
+          <span style={{background:nc+"20",color:nc,padding:"2px 7px",borderRadius:6,fontSize:10,fontWeight:700}}>{nivel}</span>
+        </div>
+      </div>
+      <div style={{position:"relative",height:14,background:"#F1F5F9",borderRadius:7,overflow:"visible"}}>
+        <div style={{height:"100%",width:pv+"%",background:color,borderRadius:7,transition:"width .4s"}}/>
+        <div style={{position:"absolute",top:-3,left:pm+"%",width:2,height:20,background:"#64748B",borderRadius:1}}/>
+        <div style={{position:"absolute",top:-3,left:pp+"%",width:2,height:20,background:"#1E40AF",borderRadius:1}}/>
+      </div>
+      <div style={{display:"flex",gap:12,marginTop:4}}>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:8,height:2,background:color,borderRadius:1}}/><span style={{fontSize:9,color:"#94A3B8"}}>Valor: {value}%</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:2,height:8,background:"#64748B",borderRadius:1}}/><span style={{fontSize:9,color:"#94A3B8"}}>Media OSI: {osi_media}%</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:2,height:8,background:"#1E40AF",borderRadius:1}}/><span style={{fontSize:9,color:"#94A3B8"}}>P75 OSI: {osi_p75}%</span></div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❻  PANTALLA DE CARGA
+// ════════════════════════════════════════════════════════════════════════════
+function PantallaCarga({progreso, error, onRetry}) {
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060E1E,#0F2444)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',system-ui,sans-serif"}}>
+      <div style={{textAlign:"center",padding:32}}>
+        <div style={{fontSize:48,marginBottom:16}}>🏥</div>
+        <div style={{color:"white",fontSize:24,fontWeight:800,letterSpacing:1,marginBottom:4}}>VISOR PCRON</div>
+        <div style={{color:"#64748B",fontSize:13,marginBottom:32}}>Osakidetza · {META.version}</div>
+        {error ? (
+          <div>
+            <div style={{color:"#FCA5A5",fontSize:14,marginBottom:12}}>❌ {error}</div>
+            <button onClick={onRetry} style={{padding:"10px 24px",background:"#DC2626",border:"none",borderRadius:8,color:"white",fontSize:13,fontWeight:700,cursor:"pointer"}}>Reintentar</button>
+            <div style={{color:"#475569",fontSize:11,marginTop:12}}>Comprueba SUPABASE_URL y SUPABASE_ANON en la configuración</div>
+          </div>
+        ) : (
+          <div style={{width:320}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <span style={{color:"#93C5FD",fontSize:12}}>Cargando {nFmt(META.totalBD)} pacientes…</span>
+              <span style={{color:"#3B82F6",fontWeight:700,fontSize:12}}>{progreso}%</span>
+            </div>
+            <div style={{height:8,background:"rgba(255,255,255,0.1)",borderRadius:4,overflow:"hidden"}}>
+              <div style={{height:"100%",width:progreso+"%",background:"linear-gradient(90deg,#3B82F6,#06B6D4)",borderRadius:4,transition:"width .3s"}}/>
+            </div>
+            <div style={{color:"#475569",fontSize:11,marginTop:8}}>
+              {progreso<20?"Conectando con Supabase…":progreso<60?"Descargando datos básicos…":progreso<90?"Procesando registros…":"Preparando vista…"}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❼  MODAL PACIENTE — COMPLETO
+// ════════════════════════════════════════════════════════════════════════════
+function exportarPacientePDF(pat, canCIC, ac, criteriosData) {
+  const cic = canCIC ? pat.cic : "RESTRINGIDO";
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>Paciente ${pat.id}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#1E293B;}
+  h1{font-size:20px;color:#0F2444;border-bottom:3px solid #1D4ED8;padding-bottom:6px;margin-bottom:16px;}
+  h2{font-size:14px;color:#1D4ED8;border-left:4px solid #1D4ED8;padding-left:8px;margin:16px 0 8px;}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+  .cell{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:4px;padding:6px 8px;}
+  .cell .lbl{font-size:9px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+  .cell .val{font-size:13px;font-weight:600;color:#1E293B;margin-top:2px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin:2px;}
+  .perfil{display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;margin:2px;border:1px solid currentColor;}
+  .crit{padding:5px 10px;border-radius:4px;margin:3px 0;font-size:11px;}
+  .crit.ok{background:#D1FAE5;border:1px solid #6EE7B7;color:#065F46;}
+  .crit.no{background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B;}
+  .crit.nd{background:#F1F5F9;border:1px solid #E2E8F0;color:#94A3B8;font-style:italic;}
+  .idx{display:inline-block;padding:8px 12px;border-radius:6px;margin:4px;text-align:center;min-width:80px;}
+  .bar-wrap{height:10px;background:#E2E8F0;border-radius:5px;margin:4px 0;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:5px;}
+  .pend{padding:5px 10px;border-radius:4px;margin:3px 0;background:#FEF3C7;border:1px solid #FCD34D;font-size:11px;color:#92400E;}
+  table{width:100%;border-collapse:collapse;font-size:11px;}
+  th{background:#0F2444;color:white;padding:6px 8px;text-align:left;font-size:10px;}
+  td{padding:6px 8px;border-bottom:1px solid #F1F5F9;}
+  @media print{body{margin:10px;} .noprint{display:none;}}
+</style>
+</head>
+<body>
+<button class="noprint" onclick="window.print()" style="margin-bottom:16px;padding:8px 20px;background:#1D4ED8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">🖨 Imprimir / Guardar PDF</button>
+<h1>📋 Ficha Clínica PCRON · ${pat.id}</h1>
+
+<h2>1. Datos Básicos</h2>
+<div class="grid">
+  <div class="cell"><div class="lbl">CIC</div><div class="val">${cic}</div></div>
+  <div class="cell"><div class="lbl">Sexo</div><div class="val">${pat.sexo==="H"?"Hombre":"Mujer"}</div></div>
+  <div class="cell"><div class="lbl">Edad</div><div class="val">${pat.edad} años</div></div>
+  <div class="cell"><div class="lbl">OSI</div><div class="val">${pat.osi}</div></div>
+  <div class="cell"><div class="lbl">Centro de Salud</div><div class="val">${pat.centro}</div></div>
+  <div class="cell"><div class="lbl">Cupo</div><div class="val">${pat.cupo}</div></div>
+  <div class="cell"><div class="lbl">Médico Ref. PCRON</div><div class="val">${pat.medico||"—"}</div></div>
+  <div class="cell"><div class="lbl">Bloque Ref.</div><div class="val">${pat.bloque||"—"}</div></div>
+  <div class="cell"><div class="lbl">GIP</div><div class="val">${[pat.gip_ap?"AP":"",pat.gip_hosp?"Hosp.":"",pat.gip_osarean?"OSAREAN":""].filter(Boolean).join(", ")||"Sin programa"}</div></div>
+</div>
+
+<h2>2. Grupo de Población</h2>
+<span class="badge" style="font-size:12px;padding:4px 12px;">${pat.pob}</span>
+
+<h2>3. Perfiles Activos</h2>
+${ac.length ? ac.map(c=>`<span class="perfil" style="color:${c.c};">${c.l}</span>`).join("") : "<em style='color:#94A3B8'>Sin perfiles activos</em>"}
+
+<h2>4. Criterios Activos por Perfil</h2>
+${ac.map(c=>{
+  const crits = CRITERIOS_PERFIL[c.k]||[];
+  if (!crits.length) return "";
+  return `<div style="margin-bottom:10px;">
+    <div style="font-size:12px;font-weight:700;color:${c.c};margin-bottom:4px;">${c.l}</div>
+    ${crits.map(cr=>{
+      if (!criteriosData || !criteriosData[cr.k]) return `<div class="crit nd">⚠ ${cr.l} — No descargado en FILTROS</div>`;
+      const val = criteriosData[cr.k][pat.id];
+      const activo = val && val[cr.k];
+      return `<div class="crit ${activo?"ok":"no"}">${activo?"✓":"○"} ${cr.l}</div>`;
+    }).join("")}
+  </div>`;
+}).join("")||"<em style='color:#94A3B8'>Sin perfiles activos</em>"}
+
+<h2>5. Índices de Complejidad</h2>
+<div style="display:flex;gap:12px;flex-wrap:wrap;">
+  ${[["COMORBILIDAD",pat.co,7],["HIPERFRECUENT.",pat.fr,13],["COMPLEJIDAD",pat.compl,30]].map(([l,v,m])=>{
+    const p=Math.min(v/m*100,100), color=v>m*0.6?"#DC2626":v>m*0.35?"#D97706":"#059669";
+    return `<div class="idx" style="background:${color}15;border:1px solid ${color}40;">
+      <div style="font-size:9px;font-weight:700;color:${color};text-transform:uppercase;">${l}</div>
+      <div style="font-size:18px;font-weight:800;color:${color};">${v}</div>
+    </div>`;
+  }).join("")}
+</div>
+
+<h2>6. Adecuación TOP</h2>
+<div style="margin:6px 0;">TOP: <strong>${pat.top_adec}%</strong> (Media OSI: ${OSI_STATS.top_media}% · P75: ${OSI_STATS.top_p75}%)</div>
+<div class="bar-wrap"><div class="bar-fill" style="width:${pat.top_adec}%;background:${pat.top_adec>=OSI_STATS.top_p75?"#059669":pat.top_adec>=OSI_STATS.top_media?"#D97706":"#DC2626"};"></div></div>
+
+<h2>7. Auditoría de Calidad</h2>
+<div style="margin:6px 0;">Auditoría: <strong>${pat.audit_adec}%</strong> (Media OSI: ${OSI_STATS.audit_media}% · P75: ${OSI_STATS.audit_p75}%)</div>
+<div class="bar-wrap"><div class="bar-fill" style="width:${pat.audit_adec}%;background:${pat.audit_adec>=OSI_STATS.audit_p75?"#059669":pat.audit_adec>=OSI_STATS.audit_media?"#D97706":"#DC2626"};"></div></div>
+${(pat.audit_pend||[]).length ? `
+<div style="margin-top:8px;font-size:11px;font-weight:700;color:#92400E;">⚠️ Elementos pendientes (${(pat.audit_pend||[]).length}):</div>
+${(pat.audit_pend||[]).map(e=>`<div class="pend">● ${e}</div>`).join("")}
+` : `<div style="margin-top:8px;padding:6px 12px;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:4px;font-size:11px;color:#065F46;">✅ Sin elementos pendientes</div>`}
+
+<div style="margin-top:24px;padding-top:12px;border-top:1px solid #E2E8F0;font-size:9px;color:#94A3B8;">
+  Generado: ${new Date().toLocaleString("es-ES")} · VISOR PCRON ${META.version} · Osakidetza
+  ${!canCIC ? " · CIC RESTRINGIDO según perfil de usuario" : ""}
+</div>
+</body></html>`;
+
+  const w = window.open("","_blank","width=800,height=900");
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+function textoHistoria(pat, canCIC, ac, criteriosData) {
+  const cic = canCIC ? pat.cic : "RESTRINGIDO";
+  const gip = [pat.gip_ap?"GIP AP":"",pat.gip_hosp?"GIP Hosp.":"",pat.gip_osarean?"GIP OSAREAN":""].filter(Boolean).join(", ")||"Sin programa";
+  const lines = [
+    "═══ PACIENTE CRÓNICO PCRON ═══",
+    `ID: ${pat.id}  ·  CIC: ${cic}`,
+    `Sexo: ${pat.sexo==="H"?"Hombre":"Mujer"}  ·  Edad: ${pat.edad} años`,
+    `OSI: ${pat.osi}  ·  Centro: ${pat.centro}  ·  Cupo: ${pat.cupo}`,
+    `Médico Ref.: ${pat.medico||"—"}  ·  Bloque: ${pat.bloque||"—"}`,
+    `Programas GIP: ${gip}`,
+    "",
+    `GRUPO DE POBLACIÓN: ${pat.pob}`,
+    "",
+    `PERFILES ACTIVOS: ${ac.length ? ac.map(c=>c.l).join(", ") : "Ninguno"}`,
+    "",
   ];
-  const GRUPOS_CRIT = [
-    {id:"PPP",label:"PPP",keys:["crit_ppp","crit_episodio_pal","crit_fragil"]},
-    {id:"DEPEND",label:"Dependencia",keys:["crit_barthel_base","crit_barthel_actual","crit_demencia","crit_caidas","crit_episodio_dom"]},
-    {id:"HFH",label:"HF Hospitalario",keys:["crit_reingresos","crit_urg_n","crit_ic","crit_epoc","crit_estancia","crit_hd"]},
-    {id:"HFAP",label:"HF AP",keys:["crit_frec_ap_med","crit_frec_ap_enf"]},
-    {id:"COMORB",label:"Comorbilidad",keys:["crit_i_renal","crit_hepatopatia","crit_anemia","crit_pluripatologico","crit_ulceras"]},
-    {id:"PAL",label:"Paliativo",keys:["crit_necpal","crit_frag_vig","crit_plan_cuidados"]},
-    {id:"FARM",label:"Polimedicación",keys:["crit_farmacos"]},
-  ];
-  const CRIT_PERFIL = {
-    geron:[{k:"crit_barthel_base",l:"Barthel basal < 80"},{k:"crit_barthel_actual",l:"Barthel actual < 60"},{k:"crit_demencia",l:"Demencia"},{k:"crit_caidas",l:"Caídas"},{k:"crit_fragil",l:"Frágil"}],
-    pal:  [{k:"crit_episodio_pal",l:"Episodio Paliativo"},{k:"crit_necpal",l:"NECPAL+"},{k:"crit_frag_vig",l:"FRAG VIG>0,48"},{k:"crit_plan_cuidados",l:"Plan Cuidados"}],
-    dep:  [{k:"crit_barthel_base",l:"Barthel basal<80"},{k:"crit_barthel_actual",l:"Barthel actual<60"},{k:"crit_episodio_dom",l:"Episodio Dom."},{k:"crit_demencia",l:"Demencia"}],
-    hfh:  [{k:"crit_reingresos",l:"Reingresos≥2"},{k:"crit_urg_n",l:"Urgencias≥3"},{k:"crit_ic",l:"IC"},{k:"crit_epoc",l:"EPOC"},{k:"crit_estancia",l:"Estancia>10d"},{k:"crit_hd",l:"HaD"}],
-    hfap: [{k:"crit_frec_ap_med",l:"Frec AP Med>25"},{k:"crit_frec_ap_enf",l:"Frec AP Enf>25"}],
-    comorb:[{k:"crit_ic",l:"IC"},{k:"crit_epoc",l:"EPOC"},{k:"crit_i_renal",l:"I.Renal"},{k:"crit_hepatopatia",l:"Hepatopatía"},{k:"crit_anemia",l:"Anemia"},{k:"crit_pluripatologico",l:"Pluripatológico"},{k:"crit_ulceras",l:"Úlceras"}],
-    polimed:[{k:"crit_farmacos",l:"Fármacos≥7"}],
-    demog:[{k:"crit_ppp",l:"PPP"},{k:"crit_fragil",l:"Alerta Frágil"},{k:"crit_pluripatologico",l:"Alerta Pluripat."},{k:"crit_episodio_pal",l:"Alerta Paliativo"}],
+  ac.forEach(c => {
+    const crits = CRITERIOS_PERFIL[c.k]||[];
+    if (!crits.length) return;
+    lines.push(`[${c.l.toUpperCase()}]`);
+    crits.forEach(cr => {
+      if (!criteriosData || !criteriosData[cr.k]) {
+        lines.push(`  ○ ${cr.l} — No descargado`);
+      } else {
+        const val = criteriosData[cr.k][pat.id];
+        const activo = val && val[cr.k];
+        lines.push(`  ${activo?"✓":"○"} ${cr.l}`);
+      }
+    });
+    lines.push("");
+  });
+  lines.push(
+    `ÍNDICES: Complejidad=${pat.compl}  ·  Comorbilidad=${pat.co}  ·  Hiperfrecuent.=${pat.fr}`,
+    `TOP adecuación: ${pat.top_adec}% (Media OSI: ${OSI_STATS.top_media}%  ·  P75: ${OSI_STATS.top_p75}%)`,
+    `Auditoría: ${pat.audit_adec}% (Media OSI: ${OSI_STATS.audit_media}%  ·  P75: ${OSI_STATS.audit_p75}%)`,
+    `Pendientes auditoría: ${(pat.audit_pend||[]).length>0 ? (pat.audit_pend||[]).join(", ") : "Ninguno"}`,
+    "",
+    `Generado: ${new Date().toLocaleString("es-ES")} · VISOR PCRON ${META.version}`,
+  );
+  return lines.join("\n");
+}
+
+function ModalPaciente({pat, canCIC, criteriosData, loadedGrupos, onLoadGrupo, onClose}) {
+  const [copied, setCopied] = useState(false);
+  const [loadingGrupo, setLoadingGrupo] = useState(null);
+  if (!pat) return null;
+  const ac = CARACTS_DEF.filter(c=>pat[c.k]);
+
+  const copiar = () => {
+    navigator.clipboard.writeText(textoHistoria(pat, canCIC, ac, criteriosData)).then(()=>{
+      setCopied(true); setTimeout(()=>setCopied(false),2500);
+    });
   };
-  const OSI_ST = {tm:68,tp:82,am:64,ap:79};
-  const CENTROS = ["AIZARNAZABAL","LASARTE","HERNANI","ERRENTERIA","PASAIA","TOLOSA","EIBAR","ANDOAIN","AZPEITIA","ZARAUTZ"];
-  const BLOQUES = ["01 AGIRRE C","02 VAQUERO","03 HIGUERA","04 COUTO","05 SANCHEZ","06 SANZ","07 ZUBELZU"];
-  const ROLES = {
-    ADM:{l:"Administrador",cic:true,adm:true},DIR:{l:"Dirección",cic:true,adm:false},
-    MAN:{l:"Mando Intermedio",cic:true,adm:false},CEN:{l:"Centro/Jefatura",cic:false,adm:false},
-    PROFESIONAL:{l:"Profesional",cic:false,adm:false},
+  const exportPDF = () => exportarPacientePDF(pat, canCIC, ac, criteriosData);
+
+  const cargarGrupo = async (grupoId) => {
+    setLoadingGrupo(grupoId);
+    await onLoadGrupo(grupoId, [pat.id]);
+    setLoadingGrupo(null);
   };
 
-  // ── HELPERS ─────────────────────────────────────────────────
-  const pct  = (n,t)=>t>0?((n/t)*100).toFixed(1):"0.0";
-  const nFmt = n=>Number(n||0).toLocaleString("es-ES");
-  const s    = (obj)=>({style:obj});  // shorthand
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:500,padding:16,overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:14,width:"100%",maxWidth:700,margin:"auto",marginTop:20,marginBottom:20,boxShadow:"0 24px 72px rgba(0,0,0,0.5)"}}>
 
-  function applyF(pacs,filtros){
-    if(!filtros.length) return pacs;
-    return pacs.filter(p=>filtros.every(f=>{
-      const v=p[f.campo]; let m=false;
-      if(f.tipo==="bool")   m=f.valor?Boolean(v):!v;
-      if(f.tipo==="select") m=v===f.valor;
-      if(f.tipo==="range")  m=v>=f.min&&v<=f.max;
-      return f.logica==="NO"?!m:m;
-    }));
-  }
+        {/* CABECERA */}
+        <div style={{background:"linear-gradient(135deg,#0F172A,#1E3A5F)",borderRadius:"14px 14px 0 0",padding:"18px 22px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5}}>PACIENTE · VISOR PCRON</div>
+              <div style={{color:"white",fontSize:22,fontWeight:900,fontFamily:"monospace",letterSpacing:-1}}>{pat.id}</div>
+              <div style={{color:canCIC?"#94A3B8":"#FCA5A5",fontSize:11,marginBottom:6}}>
+                CIC: {canCIC ? pat.cic : <span style={{color:"#FCA5A5"}}>🔒 RESTRINGIDO</span>}
+              </div>
+              <PobBadge pob={pat.pob}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
+              <button onClick={onClose} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:7,padding:"5px 11px",color:"white",cursor:"pointer",fontSize:16}}>✕</button>
+              <button onClick={copiar} style={{background:copied?"#059669":"rgba(255,255,255,0.1)",border:`1px solid ${copied?"#059669":"rgba(255,255,255,0.25)"}`,borderRadius:7,padding:"6px 12px",color:"white",cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:5,transition:"all .2s",whiteSpace:"nowrap"}}>
+                {copied?"✓ Copiado":"📋 Pegar a Historia"}
+              </button>
+              <button onClick={exportPDF} style={{background:"rgba(59,130,246,0.2)",border:"1px solid rgba(59,130,246,0.5)",borderRadius:7,padding:"6px 12px",color:"#93C5FD",cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
+                📄 Exportar PDF
+              </button>
+            </div>
+          </div>
+        </div>
 
-  // ── SUPABASE ────────────────────────────────────────────────
-  async function cargarPacs(onP){
-    let all=[],off=0,more=true;
-    while(more){
-      const {data,error}=await sb.from("PACIENTES").select('*').range(off,off+BATCH-1);
-      if(error||!data){console.error("Supabase error:",error);break;}
-      const norm=data.map(r=>{const o={};Object.keys(r).forEach(k=>{o[k.toLowerCase()]=r[k];});return o;});
-      all=[...all,...norm]; off+=BATCH;
-      onP(Math.min(97,Math.round(off/META.totalBD*100)));
-      more=data.length===BATCH;
-    }
-    return all;
-  }
+        <div style={{padding:"16px 22px",maxHeight:"75vh",overflowY:"auto"}}>
 
-  async function cargarCrits(grupo,ids){
-    const cols="id,"+grupo.keys.join(",");
-    const {data,error}=await sb.from("PACIENTES").select('*').in("ID",ids.slice(0,1000));
-    if(error||!data) return {};
-    const map={};
-    data.forEach(r=>{map[r.id]=r;});
-    return map;
-  }
+          {/* 1. DATOS BÁSICOS */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.8,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6"}}/>Datos Básicos
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+              {[
+                ["Sexo",    pat.sexo==="H"?"Hombre":"Mujer"],
+                ["Edad",    `${pat.edad} años`],
+                ["OSI",     pat.osi],
+                ["Centro",  pat.centro],
+                ["Cupo",    pat.cupo],
+                ["Médico Ref.", pat.medico||"—"],
+                ["Bloque PCRON",pat.bloque||"—"],
+                ["GIP AP",   pat.gip_ap?"Sí":"No"],
+                ["GIP Hosp.", pat.gip_hosp?"Sí":"No"],
+              ].map(([k,v])=>(
+                <div key={k} style={{background:"#F8FAFC",borderRadius:7,padding:"7px 10px"}}>
+                  <div style={{fontSize:8,color:"#94A3B8",fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>{k}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:"#1E293B",marginTop:1}}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-  // ── COMPONENTES SIMPLES ──────────────────────────────────────
-  function PobBadge({pob}){
-    const c=POB[pob]||{bg:"#6B7280",lt:"#F3F4F6"};
-    return h('span',{style:{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:c.lt,color:c.bg,border:`1px solid ${c.bg}40`,whiteSpace:"nowrap"}},pob);
-  }
+          {/* 2. CARACTERÍSTICAS ACTIVAS */}
+          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
+            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:"#8B5CF6"}}/>
+              CARACTERÍSTICAS ACTIVAS
+              <span style={{marginLeft:"auto",fontSize:11,color:"#64748B",fontWeight:400}}>{ac.length}/{CARACTS_DEF.length}</span>
+            </div>
+            <div style={{padding:"10px 12px",display:"flex",flexWrap:"wrap",gap:5}}>
+              {ac.length===0 ? (
+                <span style={{color:"#94A3B8",fontSize:12,fontStyle:"italic"}}>Sin características activas</span>
+              ) : ac.map(c=>(
+                <div key={c.k} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:c.c+"15",border:`1px solid ${c.c}40`}}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:c.c}}/>
+                  <span style={{color:c.c,fontWeight:700,fontSize:11}}>{c.l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
-  function Chips({pat}){
-    const ac=CARACTS.filter(c=>pat[c.k]);
-    if(!ac.length) return h('span',{style:{color:"#CBD5E1",fontSize:11}},"—");
-    return h('div',{style:{display:"flex",gap:3,flexWrap:"wrap"}},
-      ac.map(c=>h('span',{key:c.k,style:{padding:"1px 5px",borderRadius:3,fontSize:9,fontWeight:700,background:c.c+"20",color:c.c}},c.l.split(" ")[0].toUpperCase()))
-    );
-  }
-
-  function Bar({label,n,total,color}){
-    const p=+pct(n,total);
-    return h('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:5}},
-      h('div',{style:{width:140,fontSize:11,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:0}},label),
-      h('div',{style:{flex:1,height:11,background:"#F1F5F9",borderRadius:5,overflow:"hidden"}},
-        h('div',{style:{height:"100%",width:p+"%",background:color,borderRadius:5,transition:"width .4s"}})
-      ),
-      h('div',{style:{width:40,fontWeight:700,color,textAlign:"right",fontSize:12}},nFmt(n)),
-      h('div',{style:{width:42,color:"#94A3B8",fontSize:10,textAlign:"right"}},p+"%")
-    );
-  }
-
-  function IdxBar({label,value,om,op,color}){
-    const nc=value>=op?"#059669":value>=om?"#D97706":"#DC2626";
-    const niv=value>=op?"Bueno":value>=om?"Medio":"Bajo";
-    return h('div',{style:{marginBottom:12}},
-      h('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},
-        h('span',{style:{fontSize:12,fontWeight:700,color:"#1E293B"}},label),
-        h('div',{style:{display:"flex",alignItems:"center",gap:6}},
-          h('span',{style:{fontSize:20,fontWeight:800,color:nc}},value+"%"),
-          h('span',{style:{background:nc+"20",color:nc,padding:"2px 7px",borderRadius:6,fontSize:10,fontWeight:700}},niv)
-        )
-      ),
-      h('div',{style:{position:"relative",height:12,background:"#F1F5F9",borderRadius:6}},
-        h('div',{style:{height:"100%",width:Math.min(value,100)+"%",background:color,borderRadius:6}}),
-        h('div',{style:{position:"absolute",top:-3,left:Math.min(om,100)+"%",width:2,height:18,background:"#64748B",borderRadius:1}}),
-        h('div',{style:{position:"absolute",top:-3,left:Math.min(op,100)+"%",width:2,height:18,background:"#1E40AF",borderRadius:1}})
-      ),
-      h('div',{style:{display:"flex",gap:10,marginTop:3,fontSize:9,color:"#94A3B8"}},
-        h('span',{},"Media OSI: "+om+"%"), h('span',{},"P75 OSI: "+op+"%")
-      )
-    );
-  }
-
-  // ── MODAL ────────────────────────────────────────────────────
-  function Modal({pat,canCIC,critsData,loadedG,onLoadG,onClose}){
-    const [copied,setCopied]=useState(false);
-    const [lgG,setLgG]=useState(null);
-    if(!pat) return null;
-    const ac=CARACTS.filter(c=>pat[c.k]);
-
-    const copiar=()=>{
-      const gip=[pat.gip_ap?"GIP AP":"",pat.gip_hosp?"GIP Hosp.":"",pat.gip_osarean?"GIP OSAREAN":""].filter(Boolean).join(", ")||"Sin programa";
-      const txt=[
-        "═══ PACIENTE CRÓNICO PCRON ═══",
-        `ID: ${pat.id}  ·  CIC: ${canCIC?pat.cic:"RESTRINGIDO"}`,
-        `${pat.sexo==="H"?"Hombre":"Mujer"}, ${pat.edad} años`,
-        `OSI: ${pat.osi}  ·  Centro: ${pat.centro}  ·  Cupo: ${pat.cupo}`,
-        `Médico: ${pat.medico||"—"}  ·  Bloque: ${pat.bloque||"—"}`,
-        `GIP: ${gip}`,"",
-        `GRUPO: ${pat.pob}`,"",
-        `PERFILES: ${ac.length?ac.map(c=>c.l).join(", "):"Ninguno"}`,"",
-        `Complejidad: ${pat.compl}  Comorbilidad: ${pat.co}  Hiperfrecuent.: ${pat.fr}`,
-        `TOP: ${pat.top_adec}%  Auditoría: ${pat.audit_adec}%`,
-        `Pendientes: ${(pat.audit_pend||[]).join(", ")||"Ninguno"}`,"",
-        `Generado: ${new Date().toLocaleString("es-ES")} · VISOR PCRON ${META.version}`,
-      ].join("\n");
-      navigator.clipboard.writeText(txt).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
-    };
-
-    const loadG=async(gid)=>{setLgG(gid);await onLoadG(gid,[pat.id]);setLgG(null);};
-
-    return h('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:999,padding:20,overflowY:"auto"}},
-      h('div',{onClick:e=>e.stopPropagation(),style:{background:"white",borderRadius:14,width:"100%",maxWidth:680,marginTop:20,marginBottom:20,boxShadow:"0 24px 72px rgba(0,0,0,0.5)"}},
-        // HEADER
-        h('div',{style:{background:"linear-gradient(135deg,#0F172A,#1E3A5F)",borderRadius:"14px 14px 0 0",padding:"18px 22px"}},
-          h('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
-            h('div',{},
-              h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}},"PACIENTE · VISOR PCRON"),
-              h('div',{style:{color:"white",fontSize:22,fontWeight:900,fontFamily:"monospace"}},pat.id),
-              h('div',{style:{color:canCIC?"#94A3B8":"#FCA5A5",fontSize:11,marginBottom:8}},
-                "CIC: ", canCIC?pat.cic:h('span',{style:{color:"#FCA5A5"}},"🔒 RESTRINGIDO")
-              ),
-              h(PobBadge,{pob:pat.pob})
-            ),
-            h('div',{style:{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}},
-              h('button',{onClick:onClose,style:{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:7,padding:"5px 12px",color:"white",cursor:"pointer",fontSize:16}},"✕"),
-              h('button',{onClick:copiar,style:{background:copied?"#059669":"rgba(255,255,255,0.1)",border:`1px solid ${copied?"#059669":"rgba(255,255,255,0.25)"}`,borderRadius:7,padding:"6px 12px",color:"white",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}},
-                copied?"✓ Copiado":"📋 Pegar a Historia"
-              )
-            )
-          )
-        ),
-        // BODY
-        h('div',{style:{padding:"16px 22px",maxHeight:"76vh",overflowY:"auto"}},
-          // Datos básicos
-          h('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:14}},
-            ...[["Sexo",pat.sexo==="H"?"Hombre":"Mujer"],["Edad",pat.edad+" años"],["OSI",pat.osi],
-               ["Centro",pat.centro],["Cupo",pat.cupo],["Médico",pat.medico||"—"],
-               ["Bloque",pat.bloque||"—"],["GIP AP",pat.gip_ap?"✓":"✗"],["GIP Hosp.",pat.gip_hosp?"✓":"✗"]
-            ].map(([k,v])=>h('div',{key:k,style:{background:"#F8FAFC",borderRadius:7,padding:"7px 10px"}},
-              h('div',{style:{fontSize:8,color:"#94A3B8",fontWeight:700,textTransform:"uppercase",letterSpacing:.5}},k),
-              h('div',{style:{fontSize:12,fontWeight:600,color:"#1E293B",marginTop:2}},v)
-            ))
-          ),
-          // Características
-          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
-            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",gap:6,alignItems:"center"}},
-              h('div',{style:{width:7,height:7,borderRadius:"50%",background:"#8B5CF6"}}),"CARACTERÍSTICAS ACTIVAS",
-              h('span',{style:{marginLeft:"auto",fontSize:11,color:"#64748B",fontWeight:400}},ac.length+"/"+CARACTS.length)
-            ),
-            h('div',{style:{padding:"10px 12px",display:"flex",flexWrap:"wrap",gap:6}},
-              ac.length===0
-                ? h('span',{style:{color:"#94A3B8",fontSize:12,fontStyle:"italic"}},"Sin características activas")
-                : ac.map(c=>h('div',{key:c.k,style:{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:c.c+"15",border:`1px solid ${c.c}40`}},
-                    h('div',{style:{width:6,height:6,borderRadius:"50%",background:c.c}}),
-                    h('span',{style:{color:c.c,fontWeight:700,fontSize:11}},c.l)
-                  ))
-            )
-          ),
-          // Criterios
-          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
-            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",gap:6,alignItems:"center"}},
-              h('div',{style:{width:7,height:7,borderRadius:"50%",background:"#F59E0B"}}),"CRITERIOS POR PERFIL"
-            ),
-            h('div',{style:{padding:"10px 12px"}},
-              ac.length===0
-                ? h('span',{style:{color:"#94A3B8",fontSize:12,fontStyle:"italic"}},"Sin perfiles")
-                : ac.map(car=>{
-                    const crits=CRIT_PERFIL[car.k]||[];
-                    if(!crits.length) return null;
-                    const gid=GRUPOS_CRIT.find(g=>g.keys.some(k=>crits.some(c=>c.k===k)))?.id;
-                    const loaded=gid&&loadedG.includes(gid);
-                    return h('div',{key:car.k,style:{marginBottom:10}},
-                      h('div',{style:{fontSize:11,fontWeight:700,color:car.c,marginBottom:5,display:"flex",alignItems:"center",gap:6}},
-                        h('div',{style:{width:5,height:5,borderRadius:"50%",background:car.c}}), car.l,
-                        !loaded&&gid&&h('button',{onClick:()=>loadG(gid),disabled:lgG===gid,style:{marginLeft:"auto",padding:"2px 8px",fontSize:9,background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:4,cursor:"pointer",color:"#92400E",fontWeight:700}},
-                          lgG===gid?"Cargando…":"📦 Cargar")
-                      ),
-                      crits.map(cr=>{
-                        if(!loaded) return h('div',{key:cr.k,style:{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:5,background:"#F8FAFC",border:"1px solid #E2E8F0",marginBottom:3}},
-                          h('span',{style:{color:"#94A3B8",fontSize:10}},"○"),
-                          h('span',{style:{fontSize:11,color:"#94A3B8",fontStyle:"italic"}},cr.l),
-                          h('span',{style:{marginLeft:"auto",fontSize:9,color:"#D97706",fontWeight:700}},"No cargado")
+          {/* 3. CRITERIOS ACTIVOS POR PERFIL */}
+          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
+            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:"#F59E0B"}}/>
+              CRITERIOS ACTIVOS POR PERFIL
+            </div>
+            <div style={{padding:"10px 12px"}}>
+              {ac.length===0 ? (
+                <span style={{color:"#94A3B8",fontSize:12,fontStyle:"italic"}}>Sin perfiles activos</span>
+              ) : ac.map(caract=>{
+                const crits = CRITERIOS_PERFIL[caract.k]||[];
+                if (!crits.length) return null;
+                // Ver qué grupo cubre estos criterios
+                const grupoId = GRUPOS_CRITERIOS.find(g=>g.keys.some(k=>crits.some(c=>c.k===k)))?.id;
+                const grupoLoaded = grupoId && loadedGrupos.includes(grupoId);
+                return (
+                  <div key={caract.k} style={{marginBottom:10}}>
+                    <div style={{fontSize:11,fontWeight:700,color:caract.c,marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{width:5,height:5,borderRadius:"50%",background:caract.c}}/>
+                      {caract.l}
+                      {!grupoLoaded && grupoId && (
+                        <button onClick={()=>cargarGrupo(grupoId)} disabled={loadingGrupo===grupoId}
+                          style={{marginLeft:"auto",padding:"2px 8px",fontSize:9,background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:4,cursor:"pointer",color:"#92400E",fontWeight:700}}>
+                          {loadingGrupo===grupoId?"Cargando…":"📦 Cargar criterios"}
+                        </button>
+                      )}
+                    </div>
+                    {crits.map(cr=>{
+                      if (!grupoLoaded) {
+                        return (
+                          <div key={cr.k} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:5,background:"#F8FAFC",border:"1px solid #E2E8F0",marginBottom:3}}>
+                            <span style={{color:"#94A3B8",fontSize:10}}>○</span>
+                            <span style={{fontSize:11,color:"#94A3B8",fontStyle:"italic"}}>{cr.l}</span>
+                            <span style={{marginLeft:"auto",fontSize:9,color:"#D97706",fontWeight:700}}>No cargado</span>
+                          </div>
                         );
-                        const val=critsData?.[cr.k]?.[pat.id];
-                        const ok=val&&val[cr.k];
-                        return h('div',{key:cr.k,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:5,border:"1px solid",marginBottom:3,borderColor:ok?"#6EE7B7":"#FCA5A5",background:ok?"#D1FAE5":"#FEF2F2"}},
-                          h('span',{style:{color:ok?"#059669":"#DC2626",fontWeight:800,fontSize:12}},ok?"✓":"○"),
-                          h('span',{style:{fontSize:11,color:ok?"#065F46":"#991B1B",fontWeight:ok?600:400}},cr.l),
-                          ok&&h('span',{style:{marginLeft:"auto",fontSize:9,color:"#059669",fontWeight:700}},"ACTIVO")
-                        );
-                      })
-                    );
-                  })
-            )
-          ),
-          // Índices
-          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
-            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12}},"📊 ÍNDICES"),
-            h('div',{style:{padding:"12px 14px",display:"flex",gap:8}},
-              [["COMORBILIDAD",pat.co,7],["HIPERFRECUENT.",pat.fr,13],["COMPLEJIDAD",pat.compl,30]].map(([l,v,m])=>{
-                const p=Math.min(v/m*100,100), cl=v>m*.6?"#DC2626":v>m*.35?"#D97706":"#059669";
-                const nv=v>m*.6?"Alto":v>m*.35?"Moderado":"Bajo";
-                return h('div',{key:l,style:{flex:1,background:cl+"15",border:`1px solid ${cl}40`,borderRadius:9,padding:"10px 12px"}},
-                  h('div',{style:{fontSize:9,fontWeight:800,color:cl,letterSpacing:.8,marginBottom:3}},l),
-                  h('div',{style:{display:"flex",alignItems:"baseline",gap:4,marginBottom:6}},
-                    h('span',{style:{fontSize:20,fontWeight:800,color:cl}},v),
-                    h('span',{style:{background:cl+"25",color:cl,padding:"1px 6px",borderRadius:6,fontSize:9,fontWeight:700}},nv)
-                  ),
-                  h('div',{style:{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}},
-                    h('div',{style:{height:"100%",width:p+"%",background:cl,borderRadius:3}})
-                  )
+                      }
+                      const cd = criteriosData?.[cr.k];
+                      const patRow = cd?.[pat.id];
+                      const activo = patRow && patRow[cr.k];
+                      return (
+                        <div key={cr.k} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:5,border:"1px solid",marginBottom:3,
+                          borderColor:activo?"#6EE7B7":"#FCA5A5",
+                          background:activo?"#D1FAE5":"#FEF2F2"}}>
+                          <span style={{color:activo?"#059669":"#DC2626",fontSize:12,fontWeight:800}}>{activo?"✓":"○"}</span>
+                          <span style={{fontSize:11,color:activo?"#065F46":"#991B1B",fontWeight:activo?600:400}}>{cr.l}</span>
+                          {activo && <span style={{marginLeft:"auto",fontSize:9,color:"#059669",fontWeight:700,background:"#D1FAE5",padding:"1px 5px",borderRadius:3}}>ACTIVO</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
                 );
-              })
-            )
-          ),
-          // TOP + Auditoría
-          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
-            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12}},"⭐ TOP — Adecuación"),
-            h('div',{style:{padding:"12px 14px"}},h(IdxBar,{label:"% Adecuación TOP",value:pat.top_adec,om:OSI_ST.tm,op:OSI_ST.tp,color:"#6366F1"}))
-          ),
-          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden"}},
-            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12}},"🔍 AUDITORÍA"),
-            h('div',{style:{padding:"12px 14px"}},
-              h(IdxBar,{label:"% Adecuación Auditoría",value:pat.audit_adec,om:OSI_ST.am,op:OSI_ST.ap,color:"#0891B2"}),
-              (pat.audit_pend||[]).length>0
-                ? h('div',{style:{marginTop:8}},
-                    h('div',{style:{fontSize:10,fontWeight:700,color:"#92400E",marginBottom:5}},"⚠️ PENDIENTES ("+pat.audit_pend.length+")"),
-                    pat.audit_pend.map(e=>h('div',{key:e,style:{padding:"5px 8px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:5,marginBottom:3,fontSize:11,color:"#92400E"}},"● "+e))
-                  )
-                : h('div',{style:{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:7,marginTop:8}},
-                    "✅ ",h('span',{style:{fontSize:12,color:"#065F46",fontWeight:600}},"Auditoría completa"))
-            )
-          )
-        )
-      )
-    );
-  }
+              })}
+            </div>
+          </div>
 
-  // ── TAB ESTADÍSTICAS ─────────────────────────────────────────
-  function TabStats({pacs}){
-    const N=pacs.length;
-    if(!N) return h('div',{style:{textAlign:"center",padding:40,color:"#94A3B8",fontSize:14}},"Sin pacientes con estos filtros");
-    const H=pacs.filter(p=>p.sexo==="H").length;
-    const tm=Math.round(pacs.reduce((s,p)=>s+(p.top_adec||0),0)/N);
-    const am=Math.round(pacs.reduce((s,p)=>s+(p.audit_adec||0),0)/N);
-    const pend=pacs.filter(p=>(p.audit_pend||[]).length>0).length;
-    const uniq=k=>[...new Set(pacs.map(p=>p[k]))].filter(Boolean).sort();
-    const Box=({children,style:st={}})=>h('div',{style:{background:"white",borderRadius:10,border:"1px solid #E2E8F0",padding:"14px 16px",...st}},children);
+          {/* 4. ÍNDICES */}
+          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
+            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:"#3B82F6"}}/>ÍNDICES DE COMPLEJIDAD
+            </div>
+            <div style={{padding:"12px 14px",display:"flex",gap:8}}>
+              {[["COMORBILIDAD",pat.co,7],["HIPERFRECUENT.",pat.fr,13],["COMPLEJIDAD",pat.compl,30]].map(([lbl,val,max])=>{
+                const p=Math.min(val/max*100,100);
+                const color=val>max*0.6?"#DC2626":val>max*0.35?"#D97706":"#059669";
+                const nivel=val>max*0.6?"Alto":val>max*0.35?"Moderado":"Bajo";
+                return (
+                  <div key={lbl} style={{flex:1,background:color+"15",border:`1px solid ${color}40`,borderRadius:9,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,fontWeight:800,color,letterSpacing:.8,marginBottom:3}}>{lbl}</div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:6}}>
+                      <span style={{fontSize:20,fontWeight:800,color,lineHeight:1}}>{val}</span>
+                      <span style={{background:color+"25",color,padding:"1px 6px",borderRadius:6,fontSize:9,fontWeight:700}}>{nivel}</span>
+                    </div>
+                    <div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:p+"%",background:color,borderRadius:3}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-    return h('div',{style:{display:"flex",flexDirection:"column",gap:14}},
-      h(Box,{},
-        h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:10,paddingBottom:8,borderBottom:"2px solid #E2E8F0"}},"Básicos — N = "+nFmt(N)+" pacientes"),
-        h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}},
-          h('div',{},
-            h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Sexo"),
-            h('div',{style:{display:"flex",gap:8,marginBottom:8}},
-              [{l:"Hombres",n:H,c:"#3B82F6"},{l:"Mujeres",n:N-H,c:"#EC4899"}].map(s=>
-                h('div',{key:s.l,style:{flex:1,padding:10,background:s.c+"10",border:`1px solid ${s.c}30`,borderRadius:8,textAlign:"center"}},
-                  h('div',{style:{fontSize:22,fontWeight:800,color:s.c}},nFmt(s.n)),
-                  h('div',{style:{fontSize:10,color:s.c,fontWeight:700}},pct(s.n,N)+"%"),
-                  h('div',{style:{fontSize:10,color:"#94A3B8"}},s.l)
-                )
-              )
-            ),
-            h('div',{style:{height:8,borderRadius:4,overflow:"hidden",display:"flex"}},
-              h('div',{style:{flex:H,background:"#3B82F6"}}), h('div',{style:{flex:N-H,background:"#EC4899"}})
-            )
-          ),
-          h('div',{},
-            h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Edad"),
-            [["<65",pacs.filter(p=>p.edad<65).length],["65–74",pacs.filter(p=>p.edad>=65&&p.edad<=74).length],
-             ["75–84",pacs.filter(p=>p.edad>=75&&p.edad<=84).length],["85–94",pacs.filter(p=>p.edad>=85&&p.edad<=94).length],
-             ["≥95",pacs.filter(p=>p.edad>=95).length]
-            ].map(([l,n])=>h(Bar,{key:l,label:l,n,total:N,color:"#6366F1"}))
-          )
-        )
-      ),
-      h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
-        h(Box,{},h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"OSI"),uniq("osi").map(v=>h(Bar,{key:v,label:v,n:pacs.filter(p=>p.osi===v).length,total:N,color:"#0891B2"}))),
-        h(Box,{},h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Centro"),uniq("centro").map(v=>h(Bar,{key:v,label:v,n:pacs.filter(p=>p.centro===v).length,total:N,color:"#0284C7"}))),
-        h(Box,{},h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Médico"),uniq("medico").slice(0,8).map(v=>h(Bar,{key:v,label:v,n:pacs.filter(p=>p.medico===v).length,total:N,color:"#7C3AED"})))
-      ),
-      h(Box,{},
-        h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:10,paddingBottom:8,borderBottom:"2px solid #E2E8F0"}},"Grupos de Población"),
-        Object.entries(POB).map(([pob,c])=>{
-          const n=pacs.filter(p=>p.pob===pob).length;
-          return h('div',{key:pob,style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
-            h('div',{style:{width:170,display:"flex",alignItems:"center",gap:6}},
-              h('div',{style:{width:10,height:10,borderRadius:2,background:c.bg,flexShrink:0}}),
-              h('span',{style:{fontSize:11,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},pob)
-            ),
-            h('div',{style:{flex:1,height:13,background:"#F1F5F9",borderRadius:4,overflow:"hidden"}},
-              h('div',{style:{height:"100%",width:pct(n,N)+"%",background:c.bg,transition:"width .4s"}})
-            ),
-            h('div',{style:{width:44,fontWeight:700,color:"#1E293B",fontSize:13,textAlign:"right"}},nFmt(n)),
-            h('div',{style:{width:44,color:"#94A3B8",fontSize:11,textAlign:"right"}},pct(n,N)+"%")
-          );
-        })
-      ),
-      h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
-        h(Box,{},
-          h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:8,paddingBottom:6,borderBottom:"2px solid #E2E8F0"}},"⭐ TOP Adecuación"),
-          h('div',{style:{fontSize:32,fontWeight:800,color:"#1E293B",marginBottom:8}},tm+"%"),
-          h(IdxBar,{label:"Media pacientes",value:tm,om:OSI_ST.tm,op:OSI_ST.tp,color:"#6366F1"})
-        ),
-        h(Box,{},
-          h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:8,paddingBottom:6,borderBottom:"2px solid #E2E8F0"}},"🔍 Auditoría"),
-          h('div',{style:{fontSize:32,fontWeight:800,color:"#1E293B",marginBottom:8}},am+"%"),
-          pend>0&&h('div',{style:{padding:"7px 10px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:7,marginBottom:8,fontSize:11,color:"#92400E"}},
-            "⚠️ "+nFmt(pend)+" pacientes con pendientes ("+pct(pend,N)+"%)"),
-          h(IdxBar,{label:"Media pacientes",value:am,om:OSI_ST.am,op:OSI_ST.ap,color:"#0891B2"})
-        )
-      )
-    );
-  }
+          {/* 5. TOP + AUDITORÍA */}
+          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}}>
+            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B"}}>
+              ⭐ PERFILES TOP — Adecuación
+            </div>
+            <div style={{padding:"12px 14px"}}>
+              <IndexBar label="% Adecuación TOP" value={pat.top_adec} max={100} osi_media={OSI_STATS.top_media} osi_p75={OSI_STATS.top_p75} color="#6366F1"/>
+            </div>
+          </div>
+          <div style={{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden"}}>
+            <div style={{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B"}}>
+              🔍 AUDITORÍA — Calidad y Elementos Pendientes
+            </div>
+            <div style={{padding:"12px 14px"}}>
+              <IndexBar label="% Adecuación Auditoría" value={pat.audit_adec} max={100} osi_media={OSI_STATS.audit_media} osi_p75={OSI_STATS.audit_p75} color="#0891B2"/>
+              {(pat.audit_pend||[]).length>0 ? (
+                <div style={{marginTop:8}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#92400E",marginBottom:5}}>⚠️ ELEMENTOS PENDIENTES ({(pat.audit_pend||[]).length})</div>
+                  {(pat.audit_pend||[]).map(e=>(
+                    <div key={e} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:5,marginBottom:3}}>
+                      <span style={{color:"#D97706",fontSize:10}}>●</span>
+                      <span style={{fontSize:11,color:"#92400E",fontWeight:500}}>{e}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:7,marginTop:8}}>
+                  <span>✅</span><span style={{fontSize:12,color:"#065F46",fontWeight:600}}>Sin elementos pendientes — Auditoría completa</span>
+                </div>
+              )}
+            </div>
+          </div>
 
-  // ── TAB DETALLE ──────────────────────────────────────────────
-  const DCOLS=[
-    {k:"id",l:"ID",def:true,fix:true},{k:"cic",l:"CIC",def:false},{k:"sexo",l:"Sexo",def:true},
-    {k:"edad",l:"Edad",def:true},{k:"osi",l:"OSI",def:true},{k:"centro",l:"Centro",def:true},
-    {k:"cupo",l:"Cupo",def:false},{k:"medico",l:"Médico",def:false},
-    {k:"pob",l:"Grupo Pob.",def:true},{k:"caracts",l:"Perfiles",def:true},
-    {k:"compl",l:"Complejidad",def:true},{k:"top_adec",l:"TOP%",def:true},{k:"audit_adec",l:"Audit%",def:false},
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❽  TAB ESTADÍSTICAS
+// ════════════════════════════════════════════════════════════════════════════
+function TabEstadisticas({pacientes}) {
+  const N=pacientes.length;
+  if (!N) return <div style={{textAlign:"center",padding:40,color:"#94A3B8"}}>Sin datos</div>;
+  const hombres=pacientes.filter(p=>p.sexo==="H").length;
+  const mujeres=N-hombres;
+  const rangosEdad=[
+    {label:"< 65",  n:pacientes.filter(p=>p.edad<65).length},
+    {label:"65–74", n:pacientes.filter(p=>p.edad>=65&&p.edad<=74).length},
+    {label:"75–84", n:pacientes.filter(p=>p.edad>=75&&p.edad<=84).length},
+    {label:"85–94", n:pacientes.filter(p=>p.edad>=85&&p.edad<=94).length},
+    {label:"≥ 95",  n:pacientes.filter(p=>p.edad>=95).length},
   ];
-  const PS=50;
+  const top_media_pac=Math.round(pacientes.reduce((s,p)=>s+(p.top_adec||0),0)/N);
+  const audit_media_pac=Math.round(pacientes.reduce((s,p)=>s+(p.audit_adec||0),0)/N);
+  const conPend=pacientes.filter(p=>(p.audit_pend||[]).length>0).length;
+  const Box=({children,style={}})=>(
+    <div style={{background:"white",borderRadius:10,border:"1px solid #E2E8F0",padding:"14px 16px",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",...style}}>{children}</div>
+  );
+  const ST=({icon,title,sub})=>(
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:8,borderBottom:"2px solid #E2E8F0"}}>
+      <span style={{fontSize:18}}>{icon}</span>
+      <div>
+        <div style={{fontSize:14,fontWeight:800,color:"#1E293B"}}>{title}</div>
+        {sub&&<div style={{fontSize:11,color:"#94A3B8"}}>{sub}</div>}
+      </div>
+    </div>
+  );
+  const unique=(arr,k)=>[...new Set(arr.map(p=>p[k]))].sort();
 
-  function TabDetalle({pacs,canCIC,critsData,loadedG,onLoadG}){
-    const [q,setQ]=useState(""); const [pg,setPg]=useState(1);
-    const [vis,setVis]=useState(DCOLS.filter(c=>c.def).map(c=>c.k));
-    const [co,setCo]=useState(false); const [pat,setPat]=useState(null);
-    const fil=useMemo(()=>pacs.filter(p=>!q||[p.id,p.cic,p.centro,p.medico].some(v=>String(v||"").toLowerCase().includes(q.toLowerCase()))),[pacs,q]);
-    const tot=Math.max(1,Math.ceil(fil.length/PS));
-    const rows=fil.slice((pg-1)*PS,pg*PS);
-    const cols=DCOLS.filter(c=>vis.includes(c.k));
-    const tog=k=>{if(DCOLS.find(c=>c.k===k)?.fix)return; vis.includes(k)?vis.length>2&&setVis(v=>v.filter(x=>x!==k)):setVis(v=>[...v,k]);};
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Box>
+        <ST icon="📊" title="Básicos" sub={`N=${nFmt(N)} pacientes`}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:.6}}>Sexo</div>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              {[{l:"Hombres",n:hombres,c:"#3B82F6"},{l:"Mujeres",n:mujeres,c:"#EC4899"}].map(s=>(
+                <div key={s.l} style={{flex:1,padding:"10px",background:s.c+"10",border:`1px solid ${s.c}30`,borderRadius:8,textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:s.c}}>{nFmt(s.n)}</div>
+                  <div style={{fontSize:10,color:s.c,fontWeight:700}}>{pct(s.n,N)}%</div>
+                  <div style={{fontSize:10,color:"#94A3B8"}}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{height:8,borderRadius:4,overflow:"hidden",display:"flex"}}>
+              <div style={{flex:hombres,background:"#3B82F6"}}/><div style={{flex:mujeres,background:"#EC4899"}}/>
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:.6}}>Edad (rangos)</div>
+            {rangosEdad.map(r=><BarRow key={r.label} label={r.label} n={r.n} total={N} color="#6366F1"/>)}
+          </div>
+        </div>
+      </Box>
 
-    return h(Fragment,{},
-      pat&&h(Modal,{pat,canCIC,critsData,loadedG,onLoadG,onClose:()=>setPat(null)}),
-      // toolbar
-      h('div',{style:{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}},
-        h('div',{style:{position:"relative",flex:1,minWidth:180,maxWidth:320}},
-          h('span',{style:{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}, "🔍"),
-          h('input',{value:q,onChange:e=>{setQ(e.target.value);setPg(1);},placeholder:"ID, CIC, centro, médico…",
-            style:{width:"100%",padding:"9px 12px 9px 34px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,outline:"none"}})
-        ),
-        h('button',{onClick:()=>setCo(x=>!x),style:{padding:"9px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:`1.5px solid ${co?"#93C5FD":"#E2E8F0"}`,background:co?"#DBEAFE":"#F8FAFC",color:co?"#1D4ED8":"#475569"}},
-          "⊞ Columnas "+(co?"▲":"▼")),
-        h('span',{style:{fontSize:11,color:"#94A3B8",marginLeft:"auto"}},nFmt(fil.length)+" pacientes")
-      ),
-      co&&h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 16px",marginBottom:10}},
-        h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Columnas visibles"),
-        h('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:5}},
-          DCOLS.map(c=>{
-            const blocked=c.k==="cic"&&!canCIC, on=vis.includes(c.k);
-            return h('div',{key:c.k,onClick:()=>!blocked&&!c.fix&&tog(c.k),
-              style:{padding:"6px 10px",borderRadius:7,border:`1px solid ${on&&!blocked?"#BFDBFE":"#E2E8F0"}`,cursor:blocked||c.fix?"default":"pointer",
-              opacity:blocked?.4:1,fontSize:12,fontWeight:on&&!blocked?600:400,background:on&&!blocked?"#EFF6FF":"#FAFBFC",
-              color:on&&!blocked?"#1D4ED8":"#475569",display:"flex",gap:5,alignItems:"center",userSelect:"none"}},
-              h('span',{style:{fontSize:10}},blocked?"🔒":c.fix?"📌":on?"✓":"○"), c.l
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+        <Box>
+          <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:.6}}>OSI</div>
+          {unique(pacientes,"osi").map(osi=><BarRow key={osi} label={osi} n={pacientes.filter(p=>p.osi===osi).length} total={N} color="#0891B2"/>)}
+        </Box>
+        <Box>
+          <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:.6}}>Centros</div>
+          {unique(pacientes,"centro").map(c=><BarRow key={c} label={c} n={pacientes.filter(p=>p.centro===c).length} total={N} color="#0284C7"/>)}
+        </Box>
+        <Box>
+          <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:.6}}>Médico Referencia</div>
+          {unique(pacientes,"medico").filter(Boolean).slice(0,8).map(m=><BarRow key={m} label={m} n={pacientes.filter(p=>p.medico===m).length} total={N} color="#7C3AED"/>)}
+        </Box>
+      </div>
+
+      <Box>
+        <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:.6}}>Programas de Seguimiento (GIP)</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+          {[
+            {l:"GIP AP",    n:pacientes.filter(p=>p.gip_ap).length,  c:"#0891B2"},
+            {l:"GIP Hosp.", n:pacientes.filter(p=>p.gip_hosp).length, c:"#7C3AED"},
+            {l:"GIP OSAREAN",n:pacientes.filter(p=>p.gip_osarean).length,c:"#059669"},
+            {l:"Sin programa",n:pacientes.filter(p=>!p.gip_ap&&!p.gip_hosp&&!p.gip_osarean).length,c:"#94A3B8"},
+          ].map(g=>(
+            <div key={g.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:g.c+"10",border:`1px solid ${g.c}30`,borderRadius:8}}>
+              <span style={{fontSize:12,color:g.c,fontWeight:600}}>{g.l}</span>
+              <div style={{textAlign:"right"}}>
+                <span style={{fontWeight:700,color:"#1E293B",fontSize:14,marginRight:4}}>{nFmt(g.n)}</span>
+                <span style={{color:"#94A3B8",fontSize:10}}>{pct(g.n,N)}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Box>
+
+      <Box>
+        <ST icon="👥" title="Grupos de Población" sub="N y % por grupo"/>
+        {Object.entries(POB_DEF).map(([pob,c])=>{
+          const n=pacientes.filter(p=>p.pob===pob).length;
+          return (
+            <div key={pob} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+              <div style={{width:160,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:10,height:10,borderRadius:2,background:c.bg,flexShrink:0}}/>
+                <span style={{fontSize:11,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pob}</span>
+              </div>
+              <div style={{flex:1,height:14,background:"#F1F5F9",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:pct(n,N)+"%",background:c.bg,borderRadius:4,transition:"width .4s"}}/>
+              </div>
+              <div style={{width:40,fontWeight:700,color:"#1E293B",fontSize:13,textAlign:"right"}}>{nFmt(n)}</div>
+              <div style={{width:44,color:"#94A3B8",fontSize:11,textAlign:"right"}}>{pct(n,N)}%</div>
+            </div>
+          );
+        })}
+      </Box>
+
+      <Box>
+        <ST icon="🏷️" title="Características / Perfiles"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:6}}>
+          {CARACTS_DEF.map(c=>{
+            const n=pacientes.filter(p=>p[c.k]).length;
+            return (
+              <div key={c.k} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:c.c+"08",border:`1px solid ${c.c}25`,borderRadius:8}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:c.c}}/>
+                <span style={{fontSize:12,color:c.c,fontWeight:600,flex:1}}>{c.l}</span>
+                <span style={{fontWeight:800,color:"#1E293B",fontSize:13}}>{nFmt(n)}</span>
+                <span style={{color:"#94A3B8",fontSize:10}}>{pct(n,N)}%</span>
+              </div>
             );
-          })
-        )
-      ),
-      // table
-      h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",overflow:"hidden"}},
-        h('div',{style:{overflowX:"auto"}},
-          h('table',{style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
-            h('thead',{},h('tr',{style:{background:"#F8FAFC",borderBottom:"2px solid #E2E8F0"}},
-              cols.map(c=>h('th',{key:c.k,style:{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",fontSize:10,textTransform:"uppercase",letterSpacing:.7,whiteSpace:"nowrap"}},c.l)),
-              h('th',{style:{width:40}})
-            )),
-            h('tbody',{},rows.map((p,i)=>h('tr',{key:p.id,onClick:()=>setPat(p),
-              style:{borderBottom:"1px solid #F1F5F9",background:i%2?"#FAFBFC":"white",cursor:"pointer"},
-              onMouseEnter:e=>e.currentTarget.style.background="#EFF6FF",
-              onMouseLeave:e=>e.currentTarget.style.background=i%2?"#FAFBFC":"white"},
-              cols.map(c=>{
-                const td={padding:"8px 12px"};
-                if(c.k==="id")      return h('td',{key:"id",style:{...td,fontFamily:"monospace",fontSize:11,fontWeight:700,color:"#334155"}},p.id);
-                if(c.k==="cic")     return h('td',{key:"cic",style:{...td,fontFamily:"monospace",fontSize:11}},canCIC?p.cic:"🔒");
-                if(c.k==="sexo")    return h('td',{key:"s",style:td},h('span',{style:{display:"inline-block",width:20,height:20,borderRadius:"50%",background:p.sexo==="H"?"#DBEAFE":"#FCE7F3",color:p.sexo==="H"?"#1D4ED8":"#BE185D",fontSize:10,fontWeight:700,lineHeight:"20px",textAlign:"center"}},p.sexo));
-                if(c.k==="edad")    return h('td',{key:"e",style:{...td,fontWeight:700,color:p.edad>=85?"#DC2626":"#1E293B"}},p.edad,(p.edad>=85&&h('span',{style:{fontSize:8,color:"#DC2626",marginLeft:2}},"▲")));
-                if(c.k==="osi")     return h('td',{key:"o",style:{...td,fontSize:11,color:"#64748B"}},p.osi);
-                if(c.k==="centro")  return h('td',{key:"ce",style:{...td,fontWeight:600}},p.centro);
-                if(c.k==="cupo")    return h('td',{key:"cu",style:{...td,fontFamily:"monospace",fontSize:11,color:"#64748B"}},p.cupo);
-                if(c.k==="medico")  return h('td',{key:"m",style:{...td,fontSize:11,color:"#475569"}},p.medico);
-                if(c.k==="pob")     return h('td',{key:"p",style:td},h(PobBadge,{pob:p.pob}));
-                if(c.k==="caracts") return h('td',{key:"ca",style:td},h(Chips,{pat:p}));
-                if(c.k==="compl")   return h('td',{key:"co",style:td},h('div',{style:{display:"flex",alignItems:"center",gap:5}},
-                  h('div',{style:{width:36,height:5,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}},h('div',{style:{height:"100%",width:Math.min(p.compl/25*100,100)+"%",background:p.compl>15?"#DC2626":p.compl>8?"#D97706":"#059669",borderRadius:3}})),
-                  h('span',{style:{fontWeight:700,color:"#475569"}},p.compl)));
-                if(c.k==="top_adec")   return h('td',{key:"t",style:{...td,fontWeight:700,color:p.top_adec>=OSI_ST.tp?"#059669":p.top_adec>=OSI_ST.tm?"#D97706":"#DC2626"}},p.top_adec+"%");
-                if(c.k==="audit_adec") return h('td',{key:"a",style:{...td,fontWeight:700,color:p.audit_adec>=OSI_ST.ap?"#059669":p.audit_adec>=OSI_ST.am?"#D97706":"#DC2626"}},p.audit_adec+"%");
-                return h('td',{key:c.k});
-              }),
-              h('td',{style:{padding:"8px 12px"}},
-                h('button',{onClick:e=>{e.stopPropagation();setPat(p);},style:{padding:"3px 8px",background:"#F1F5F9",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,cursor:"pointer",color:"#475569",fontWeight:600}},"Ver")
-              )
-            )))
-          )
-        ),
-        h('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderTop:"1px solid #F1F5F9",background:"#FAFBFC"}},
-          h('span',{style:{fontSize:12,color:"#94A3B8"}},"Mostrando "+nFmt((pg-1)*PS+1)+"–"+nFmt(Math.min(pg*PS,fil.length))+" de "+nFmt(fil.length)),
-          h('div',{style:{display:"flex",gap:3}},
-            h('button',{onClick:()=>setPg(p=>Math.max(1,p-1)),disabled:pg===1,style:{padding:"4px 10px",border:"1px solid #E2E8F0",borderRadius:6,background:"white",cursor:pg===1?"default":"pointer",color:pg===1?"#CBD5E1":"#475569",fontSize:12}},"←"),
-            [...Array(Math.min(5,tot))].map((_,i)=>{
-              const n=Math.max(1,Math.min(pg-2,tot-4))+i;
-              return h('button',{key:n,onClick:()=>setPg(n),style:{padding:"4px 10px",border:"1px solid",borderColor:pg===n?"#3B82F6":"#E2E8F0",borderRadius:6,background:pg===n?"#3B82F6":"white",color:pg===n?"white":"#475569",cursor:"pointer",fontSize:12,fontWeight:pg===n?700:400}},n);
-            }),
-            h('button',{onClick:()=>setPg(p=>Math.min(tot,p+1)),disabled:pg===tot,style:{padding:"4px 10px",border:"1px solid #E2E8F0",borderRadius:6,background:"white",cursor:pg===tot?"default":"pointer",color:pg===tot?"#CBD5E1":"#475569",fontSize:12}},"→")
-          )
-        )
-      )
+          })}
+        </div>
+      </Box>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <Box>
+          <ST icon="⭐" title="TOP" sub="% adecuación vs OSI"/>
+          <div style={{padding:"8px 12px",background:"#F8FAFC",borderRadius:8,marginBottom:10,display:"flex",gap:16,alignItems:"center"}}>
+            <div><div style={{fontSize:10,color:"#94A3B8",fontWeight:700}}>MEDIA PACIENTES</div>
+              <div style={{fontSize:22,fontWeight:800,color:"#1E293B"}}>{top_media_pac}%</div></div>
+            <div style={{width:1,height:40,background:"#E2E8F0"}}/>
+            <div style={{display:"flex",gap:12}}>
+              <div><div style={{fontSize:9,color:"#94A3B8"}}>OSI MEDIA</div><div style={{fontWeight:700,color:"#64748B"}}>{OSI_STATS.top_media}%</div></div>
+              <div><div style={{fontSize:9,color:"#94A3B8"}}>OSI P75</div><div style={{fontWeight:700,color:"#1D4ED8"}}>{OSI_STATS.top_p75}%</div></div>
+            </div>
+          </div>
+          <IndexBar label="Adecuación TOP media" value={top_media_pac} max={100} osi_media={OSI_STATS.top_media} osi_p75={OSI_STATS.top_p75} color="#6366F1"/>
+        </Box>
+        <Box>
+          <ST icon="🔍" title="Auditoría" sub="% adecuación y pendientes"/>
+          <div style={{padding:"8px 12px",background:"#F8FAFC",borderRadius:8,marginBottom:8,display:"flex",gap:16,alignItems:"center"}}>
+            <div><div style={{fontSize:10,color:"#94A3B8",fontWeight:700}}>MEDIA PACIENTES</div>
+              <div style={{fontSize:22,fontWeight:800,color:"#1E293B"}}>{audit_media_pac}%</div></div>
+            <div style={{width:1,height:40,background:"#E2E8F0"}}/>
+            <div style={{display:"flex",gap:12}}>
+              <div><div style={{fontSize:9,color:"#94A3B8"}}>OSI MEDIA</div><div style={{fontWeight:700,color:"#64748B"}}>{OSI_STATS.audit_media}%</div></div>
+              <div><div style={{fontSize:9,color:"#94A3B8"}}>OSI P75</div><div style={{fontWeight:700,color:"#1D4ED8"}}>{OSI_STATS.audit_p75}%</div></div>
+            </div>
+          </div>
+          {conPend>0&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:7,marginBottom:8}}>
+            <span>⚠️</span><div><div style={{fontSize:12,fontWeight:700,color:"#92400E"}}>{nFmt(conPend)} pacientes con pendientes</div>
+              <div style={{fontSize:10,color:"#B45309"}}>{pct(conPend,N)}% del total</div></div>
+          </div>}
+          <IndexBar label="Adecuación Auditoría media" value={audit_media_pac} max={100} osi_media={OSI_STATS.audit_media} osi_p75={OSI_STATS.audit_p75} color="#0891B2"/>
+        </Box>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❾  TAB DETALLE
+// ════════════════════════════════════════════════════════════════════════════
+const ALL_COLS=[
+  {k:"id",    label:"ID",             def:true, fixed:true},
+  {k:"cic",   label:"CIC",            def:false,fixed:false},
+  {k:"sexo",  label:"Sexo",           def:true, fixed:false},
+  {k:"edad",  label:"Edad",           def:true, fixed:false},
+  {k:"osi",   label:"OSI",            def:true, fixed:false},
+  {k:"centro",label:"Centro",         def:true, fixed:false},
+  {k:"cupo",  label:"Cupo",           def:false,fixed:false},
+  {k:"medico",label:"Médico",         def:false,fixed:false},
+  {k:"pob",   label:"Grupo Poblac.",  def:true, fixed:false},
+  {k:"caracts",label:"Perfiles",      def:true, fixed:false},
+  {k:"compl", label:"Complejidad",    def:true, fixed:false},
+  {k:"co",    label:"Comorbilidad",   def:false,fixed:false},
+  {k:"fr",    label:"Hiperfrecuent.", def:false,fixed:false},
+  {k:"top_adec",label:"TOP %",        def:true, fixed:false},
+  {k:"audit_adec",label:"Audit. %",   def:false,fixed:false},
+];
+const PAGE_SIZE=50;
+
+function TabDetalle({pacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
+  const [search,setSearch]=useState("");
+  const [page,setPage]=useState(1);
+  const [visCols,setVisCols]=useState(ALL_COLS.filter(c=>c.def).map(c=>c.k));
+  const [colsOpen,setColsOpen]=useState(false);
+  const [pat,setPat]=useState(null);
+
+  const fil=useMemo(()=>pacientes.filter(p=>
+    !search||
+    String(p.id||"").includes(search)||
+    String(p.cic||"").includes(search)||
+    String(p.centro||"").toLowerCase().includes(search.toLowerCase())||
+    String(p.medico||"").toLowerCase().includes(search.toLowerCase())
+  ),[pacientes,search]);
+
+  const totalPags=Math.max(1,Math.ceil(fil.length/PAGE_SIZE));
+  const rows=fil.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+  const cols=ALL_COLS.filter(c=>visCols.includes(c.k));
+  const togCol=k=>{
+    if(ALL_COLS.find(c=>c.k===k)?.fixed) return;
+    if(visCols.includes(k)){if(visCols.length>2)setVisCols(v=>v.filter(x=>x!==k));}
+    else setVisCols(v=>[...v,k]);
+  };
+
+  return (
+    <>
+      {pat&&<ModalPaciente pat={pat} canCIC={canCIC} criteriosData={criteriosData} loadedGrupos={loadedGrupos} onLoadGrupo={onLoadGrupo} onClose={()=>setPat(null)}/>}
+      <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{position:"relative",flex:1,minWidth:180,maxWidth:340}}>
+          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}>🔍</span>
+          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="ID, CIC, centro, médico…"
+            style={{width:"100%",padding:"9px 12px 9px 34px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,background:"white",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+        </div>
+        <button onClick={()=>setColsOpen(o=>!o)} style={{padding:"9px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:`1.5px solid ${colsOpen?"#93C5FD":"#E2E8F0"}`,background:colsOpen?"#DBEAFE":"#F8FAFC",color:colsOpen?"#1D4ED8":"#475569",fontFamily:"inherit"}}>
+          ⊞ Columnas {colsOpen?"▲":"▼"}
+        </button>
+        <button style={{padding:"9px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1.5px solid #6EE7B7",background:"#D1FAE5",color:"#065F46",fontFamily:"inherit"}}>📊 Excel</button>
+        <button style={{padding:"9px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1.5px solid #FCA5A5",background:"#FEE2E2",color:"#991B1B",fontFamily:"inherit"}}>📄 PDF</button>
+        <span style={{fontSize:11,color:"#94A3B8",marginLeft:"auto"}}>{nFmt(fil.length)} pacientes</span>
+      </div>
+
+      {colsOpen&&(
+        <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 16px",marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:.6}}>Columnas visibles</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:5}}>
+            {ALL_COLS.map(c=>{
+              const blocked=c.k==="cic"&&!canCIC;
+              const on=visCols.includes(c.k);
+              return (
+                <div key={c.k} onClick={()=>!blocked&&!c.fixed&&togCol(c.k)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:`1px solid ${on&&!blocked?"#BFDBFE":"#E2E8F0"}`,cursor:blocked||c.fixed?"default":"pointer",opacity:blocked?0.4:1,fontSize:12,fontWeight:on&&!blocked?600:400,background:on&&!blocked?"#EFF6FF":"#FAFBFC",color:on&&!blocked?"#1D4ED8":"#475569",userSelect:"none"}}>
+                  <span style={{minWidth:14,fontSize:11}}>{blocked?"🔒":c.fixed?"📌":on?"✓":"○"}</span>
+                  {c.label}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{background:"white",borderRadius:12,border:"1px solid #E2E8F0",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:"#F8FAFC",borderBottom:"2px solid #E2E8F0"}}>
+                {cols.map(c=><th key={c.k} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",fontSize:10,letterSpacing:.7,whiteSpace:"nowrap",textTransform:"uppercase"}}>{c.label}</th>)}
+                <th style={{padding:"9px 12px",width:50}}/>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((p,i)=>(
+                <tr key={p.id} onClick={()=>setPat(p)} style={{borderBottom:"1px solid #F1F5F9",background:i%2===0?"white":"#FAFBFC",cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="#EFF6FF"}
+                  onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"white":"#FAFBFC"}>
+                  {cols.map(c=>{
+                    switch(c.k) {
+                      case "id":      return <td key="id"     style={{padding:"8px 12px",fontFamily:"monospace",fontSize:11,fontWeight:700,color:"#334155"}}>{p.id}</td>;
+                      case "cic":     return <td key="cic"    style={{padding:"8px 12px",fontFamily:"monospace",fontSize:11,color:canCIC?"#64748B":"#CBD5E1"}}>{canCIC?p.cic:"🔒 REST."}</td>;
+                      case "sexo":    return <td key="sexo"   style={{padding:"8px 12px"}}><span style={{display:"inline-block",width:20,height:20,borderRadius:"50%",background:p.sexo==="H"?"#DBEAFE":"#FCE7F3",color:p.sexo==="H"?"#1D4ED8":"#BE185D",fontSize:10,fontWeight:700,lineHeight:"20px",textAlign:"center"}}>{p.sexo}</span></td>;
+                      case "edad":    return <td key="edad"   style={{padding:"8px 12px",fontWeight:700,color:p.edad>=85?"#DC2626":"#1E293B"}}>{p.edad}{p.edad>=85&&<span style={{fontSize:8,color:"#DC2626",marginLeft:2}}>▲85</span>}</td>;
+                      case "osi":     return <td key="osi"    style={{padding:"8px 12px",fontSize:11,color:"#64748B"}}>{p.osi}</td>;
+                      case "centro":  return <td key="centro" style={{padding:"8px 12px",fontWeight:600,color:"#1E293B"}}>{p.centro}</td>;
+                      case "cupo":    return <td key="cupo"   style={{padding:"8px 12px",fontFamily:"monospace",fontSize:11,color:"#64748B"}}>{p.cupo}</td>;
+                      case "medico":  return <td key="medico" style={{padding:"8px 12px",fontSize:11,color:"#475569"}}>{p.medico}</td>;
+                      case "pob":     return <td key="pob"    style={{padding:"8px 12px"}}><PobBadge pob={p.pob}/></td>;
+                      case "caracts": return <td key="caracts"style={{padding:"8px 12px"}}><ProfileChips patient={p}/></td>;
+                      case "compl":   return <td key="compl"  style={{padding:"8px 12px"}}><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:36,height:5,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:Math.min(p.compl/25*100,100)+"%",background:p.compl>15?"#DC2626":p.compl>8?"#D97706":"#059669",borderRadius:3}}/></div><span style={{fontWeight:700,color:"#475569",fontSize:12}}>{p.compl}</span></div></td>;
+                      case "co":      return <td key="co"     style={{padding:"8px 12px",fontWeight:700,color:p.co>4?"#DC2626":p.co>2?"#D97706":"#64748B"}}>{p.co}</td>;
+                      case "fr":      return <td key="fr"     style={{padding:"8px 12px",fontWeight:700,color:p.fr>5?"#DC2626":p.fr>3?"#D97706":"#64748B"}}>{p.fr}</td>;
+                      case "top_adec":return <td key="top"    style={{padding:"8px 12px",fontWeight:700,color:p.top_adec>=OSI_STATS.top_p75?"#059669":p.top_adec>=OSI_STATS.top_media?"#D97706":"#DC2626"}}>{p.top_adec}%</td>;
+                      case "audit_adec":return <td key="aud"  style={{padding:"8px 12px",fontWeight:700,color:p.audit_adec>=OSI_STATS.audit_p75?"#059669":p.audit_adec>=OSI_STATS.audit_media?"#D97706":"#DC2626"}}>{p.audit_adec}%</td>;
+                      default:        return <td key={c.k}/>;
+                    }
+                  })}
+                  <td style={{padding:"8px 12px"}}>
+                    <button onClick={e=>{e.stopPropagation();setPat(p);}} style={{padding:"3px 9px",background:"#F1F5F9",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}}>Ver</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderTop:"1px solid #F1F5F9",background:"#FAFBFC"}}>
+          <span style={{fontSize:12,color:"#94A3B8"}}>Mostrando {nFmt((page-1)*PAGE_SIZE+1)}–{nFmt(Math.min(page*PAGE_SIZE,fil.length))} de {nFmt(fil.length)}</span>
+          <div style={{display:"flex",gap:3}}>
+            <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} style={{padding:"4px 10px",border:"1px solid #E2E8F0",borderRadius:6,background:"white",cursor:page===1?"default":"pointer",color:page===1?"#CBD5E1":"#475569",fontSize:12}}>←</button>
+            {[...Array(Math.min(5,totalPags))].map((_,i)=>{
+              const n=Math.max(1,Math.min(page-2,totalPags-4))+i;
+              return <button key={n} onClick={()=>setPage(n)} style={{padding:"4px 10px",border:"1px solid",borderColor:page===n?"#3B82F6":"#E2E8F0",borderRadius:6,background:page===n?"#3B82F6":"white",color:page===n?"white":"#475569",cursor:"pointer",fontSize:12,fontWeight:page===n?700:400}}>{n}</button>;
+            })}
+            <button onClick={()=>setPage(p=>Math.min(totalPags,p+1))} disabled={page===totalPags} style={{padding:"4px 10px",border:"1px solid #E2E8F0",borderRadius:6,background:"white",cursor:page===totalPags?"default":"pointer",color:page===totalPags?"#CBD5E1":"#475569",fontSize:12}}>→</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ❿  TAB FILTROS (versión v5 integrada)
+// ════════════════════════════════════════════════════════════════════════════
+function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo}) {
+  const [saveName,setSaveName]=useState("");
+  const [expanded,setExpanded]=useState({});
+  const toggle=(k)=>setExpanded(e=>({...e,[k]:!e[k]}));
+  const addFiltro=(f)=>setFiltros(prev=>[...prev,{...f,id:Date.now(),logica:"Y"}]);
+  const removeFiltro=(id)=>setFiltros(prev=>prev.filter(x=>x.id!==id));
+  const updateLogica=(id,l)=>setFiltros(prev=>prev.map(f=>f.id===id?{...f,logica:l}:f));
+  const logicaColor={Y:"#3B82F6",O:"#D97706",NO:"#DC2626"};
+  const nFiltrado=applyFiltros(pacientes,filtros).length;
+
+  const Seccion=({k,label,badge,children})=>(
+    <div style={{border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden",marginBottom:6}}>
+      <div onClick={()=>toggle(k)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#F8FAFC",cursor:"pointer",userSelect:"none"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#1E293B"}}>{label}</span>
+          {badge&&<span style={{fontSize:9,background:"#DBEAFE",color:"#1D4ED8",padding:"1px 6px",borderRadius:3,fontWeight:700}}>{badge}</span>}
+        </div>
+        <span style={{fontSize:10,color:"#94A3B8"}}>{expanded[k]?"▲":"▼"}</span>
+      </div>
+      {expanded[k]&&<div style={{padding:"10px 12px"}}>{children}</div>}
+    </div>
+  );
+
+  const FBool=({campo,label})=>(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+      <span style={{fontSize:12,color:"#475569"}}>{label}</span>
+      <div style={{display:"flex",gap:4}}>
+        {["Sí","No"].map(v=>(
+          <button key={v} onClick={()=>addFiltro({campo,label,tipo:"bool",valor:v==="Sí"})}
+            style={{padding:"3px 9px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:5,background:"white",cursor:"pointer",color:"#475569"}}>
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const FSelect=({campo,label,opciones})=>(
+    <div style={{marginBottom:6}}>
+      <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}}>{label}</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+        {opciones.map(o=>(
+          <button key={o} onClick={()=>addFiltro({campo,label:`${label}=${o}`,tipo:"select",valor:o})}
+            style={{padding:"2px 7px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}}>
+            {o}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+      {/* COLUMNA 1: DATOS BÁSICOS */}
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📋 Datos Básicos <span style={{background:"#D1FAE5",color:"#065F46",padding:"1px 6px",borderRadius:3"}}>✅ Carga inicial</span></div>
+
+        <Seccion k="sexo" label="Sexo">
+          <FBool campo="sexo" label="Sexo"/>
+          <div style={{display:"flex",gap:4}}>
+            {["H","M"].map(v=><button key={v} onClick={()=>addFiltro({campo:"sexo",label:`Sexo = ${v==="H"?"Hombre":"Mujer"}`,tipo:"select",valor:v})} style={{flex:1,padding:"5px",fontSize:11,border:"1px solid #E2E8F0",borderRadius:5,background:v==="H"?"#EFF6FF":"#FDF2F8",cursor:"pointer",color:v==="H"?"#1D4ED8":"#BE185D",fontWeight:600}}>{v==="H"?"♂ Hombre":"♀ Mujer"}</button>)}
+          </div>
+        </Seccion>
+
+        <Seccion k="osi" label="OSI">
+          <FSelect campo="osi" label="OSI" opciones={["01 OSID","02 OSIT","03 RESTO OSI"]}/>
+        </Seccion>
+
+        <Seccion k="centro" label="Centro de Salud">
+          <FSelect campo="centro" label="Centro" opciones={CENTROS_ALL}/>
+        </Seccion>
+
+        <Seccion k="bloque" label="Bloque Ref. PCRON" badge="04-13-03-02">
+          <FSelect campo="bloque" label="Bloque" opciones={BLOQUES_PCRON}/>
+        </Seccion>
+
+        <Seccion k="gip" label="Programas GIP" badge="Carga inicial">
+          <FBool campo="gip_ap"     label="GIP AP (04-12-05-02)"/>
+          <FBool campo="gip_hosp"   label="GIP PCRON Hosp. (04-13-09-01)"/>
+          <FBool campo="gip_osarean"label="GIP OSAREAN (04-15-09-01)"/>
+        </Seccion>
+      </div>
+
+      {/* COLUMNA 2: CARACTERÍSTICAS */}
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>🏷️ Características</div>
+
+        <Seccion k="pob" label="Grupo de Población">
+          <FSelect campo="pob" label="Grupo" opciones={Object.keys(POB_DEF)}/>
+        </Seccion>
+
+        <Seccion k="perfiles" label="Perfiles">
+          {CARACTS_DEF.map(c=><FBool key={c.k} campo={c.k} label={c.l}/>)}
+        </Seccion>
+
+        <Seccion k="may85" label="Mayor 85">
+          <FBool campo="may85" label="Mayor 85 años"/>
+        </Seccion>
+
+        <Seccion k="top" label="TOP Adecuación %">
+          <div style={{fontSize:11,color:"#64748B",marginBottom:6}}>Rango de adecuación TOP</div>
+          <div style={{display:"flex",gap:4"}}>
+            {[["≥ 80 (Bueno)","≥80",p=>p.top_adec>=80],["60–79 (Medio)","60-79",p=>p.top_adec>=60&&p.top_adec<80],["< 60 (Bajo)","<60",p=>p.top_adec<60]].map(([l,v])=>(
+              <button key={v} onClick={()=>addFiltro({campo:"top_adec",label:`TOP ${v}%`,tipo:"range",min:v.startsWith("≥")?parseInt(v.slice(1)):v.startsWith("<")?0:60,max:v.startsWith("≥")?100:v.startsWith("<")?59:79})}
+                style={{flex:1,padding:"4px 6px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}}>{l}</button>
+            ))}
+          </div>
+        </Seccion>
+      </div>
+
+      {/* COLUMNA 3: CRITERIOS BAJO DEMANDA */}
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📦 Criterios Clínicos</div>
+        <div style={{padding:"8px 10px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:7,marginBottom:8,fontSize:10,color:"#065F46"}}>
+          ✅ Médico/Bloque PCRON y GIP ya disponibles en carga inicial
+        </div>
+
+        {GRUPOS_CRITERIOS.map(g=>{
+          const loaded=loadedGrupos.includes(g.id);
+          return (
+            <Seccion key={g.id} k={`crit_${g.id}`} label={g.label} badge={loaded?"Cargado":"📦 No cargado"}>
+              {!loaded ? (
+                <div style={{textAlign:"center",padding:"12px 0"}}>
+                  <div style={{fontSize:11,color:"#94A3B8",marginBottom:8}}>Este grupo de criterios no está descargado</div>
+                  <button onClick={()=>onLoadGrupo(g.id, pacientes.slice(0,5000).map(p=>p.id))}
+                    style={{padding:"6px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                    📦 Cargar criterios
+                  </button>
+                </div>
+              ) : (
+                g.keys.map(k=><FBool key={k} campo={k} label={k.replace("crit_","").replace(/_/g," ")}/>)
+              )}
+            </Seccion>
+          );
+        })}
+
+        {/* FILTROS ACTIVOS */}
+        {filtros.length>0&&(
+          <div style={{marginTop:12,padding:"10px 12px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:9}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#1D4ED8",marginBottom:6}}>FILTROS ACTIVOS ({filtros.length})</div>
+            {filtros.map(f=>(
+              <div key={f.id} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                <select value={f.logica} onChange={e=>updateLogica(f.id,e.target.value)}
+                  style={{fontSize:9,fontWeight:700,padding:"1px 3px",borderRadius:3,border:"none",background:logicaColor[f.logica]+"20",color:logicaColor[f.logica],cursor:"pointer"}}>
+                  {["Y","O","NO"].map(l=><option key={l} value={l}>{l}</option>)}
+                </select>
+                <span style={{fontSize:10,flex:1,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.label}</span>
+                <button onClick={()=>removeFiltro(f.id)} style={{background:"none",border:"none",color:"#94A3B8",cursor:"pointer",fontSize:13,padding:0}}>×</button>
+              </div>
+            ))}
+            <div style={{borderTop:"1px solid #BFDBFE",marginTop:8,paddingTop:8,display:"flex",gap:6}}>
+              <input value={saveName} onChange={e=>setSaveName(e.target.value)} placeholder="Nombre del filtro…"
+                style={{flex:1,padding:"4px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,fontFamily:"inherit"}}/>
+              <button onClick={()=>{if(saveName){setSavedFiltros(p=>[...p,{name:saveName,filtros:[...filtros]}]);setSaveName("");}}}
+                style={{padding:"4px 10px",background:"#059669",border:"none",borderRadius:5,color:"white",fontSize:11,cursor:"pointer",fontWeight:700}}>Guardar</button>
+              <button onClick={()=>setFiltros([])}
+                style={{padding:"4px 10px",background:"#DC2626",border:"none",borderRadius:5,color:"white",fontSize:11,cursor:"pointer"}}>Limpiar</button>
+            </div>
+            <div style={{marginTop:4,fontSize:10,color:"#1D4ED8",fontWeight:700}}>→ {nFmt(nFiltrado)} pacientes cumplen los filtros</div>
+          </div>
+        )}
+
+        {savedFiltros.length>0&&(
+          <div style={{marginTop:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:5}}>FILTROS GUARDADOS</div>
+            {savedFiltros.map((sf,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                <button onClick={()=>setFiltros(sf.filtros)} style={{flex:1,padding:"4px 8px",background:"white",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,cursor:"pointer",color:"#475569",textAlign:"left"}}>
+                  📂 {sf.name}
+                </button>
+                <button onClick={()=>setSavedFiltros(p=>p.filter((_,j)=>j!==i))} style={{padding:"2px 7px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:4,fontSize:11,cursor:"pointer",color:"#991B1B"}}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ⓫  TAB ANÁLISIS (Simple + Complejo — versión v5)
+// ════════════════════════════════════════════════════════════════════════════
+function TabAnalisis({pacientes,savedAnalisis,setSavedAnalisis}) {
+  const [modo,setModo]=useState("simple");
+  const [campoA,setCampoA]=useState("pob");
+  const [valorA,setValorA]=useState(Object.keys(POB_DEF)[0]);
+  const [filtrosB,setFiltrosB]=useState([]);
+  const [ejecutado,setEjecutado]=useState(false);
+  const [saveName,setSaveName]=useState("");
+
+  const campos=[
+    {k:"pob",    l:"Grupo Población",  tipo:"select",opts:Object.keys(POB_DEF)},
+    {k:"geron",  l:"Gerontológico",    tipo:"bool"},
+    {k:"pal",    l:"Paliativo",        tipo:"bool"},
+    {k:"dep",    l:"Dep. Domicilio",   tipo:"bool"},
+    {k:"hfh",    l:"HF Hospitalario",  tipo:"bool"},
+    {k:"comorb", l:"Comorbilidad",     tipo:"bool"},
+    {k:"polimed",l:"Polimedicado",     tipo:"bool"},
+    {k:"gip_ap", l:"GIP AP",          tipo:"bool"},
+    {k:"gip_hosp",l:"GIP Hosp.",      tipo:"bool"},
+    {k:"osi",    l:"OSI",             tipo:"select",opts:["01 OSID","02 OSIT","03 RESTO OSI"]},
+    {k:"centro", l:"Centro",          tipo:"select",opts:CENTROS_ALL},
+  ];
+
+  const campoInfo=campos.find(c=>c.k===campoA)||campos[0];
+
+  const grupoA=modo==="simple"
+    ? pacientes.filter(p=>campoInfo.tipo==="bool" ? Boolean(p[campoA]) : p[campoA]===valorA)
+    : applyFiltros(pacientes,[]);
+  const grupoB=modo==="simple"
+    ? pacientes.filter(p=>campoInfo.tipo==="bool" ? !p[campoA] : p[campoA]!==valorA)
+    : applyFiltros(pacientes,filtrosB);
+
+  const stats=(g)=>{
+    if(!g.length) return {N:0,h:0,mujeres:0,edadMedia:0,compl:0,top:0,aud:0,polimed:0};
+    return {
+      N:g.length,
+      h:g.filter(p=>p.sexo==="H").length,
+      mujeres:g.filter(p=>p.sexo==="M").length,
+      edadMedia:+(g.reduce((s,p)=>s+p.edad,0)/g.length).toFixed(1),
+      compl:+(g.reduce((s,p)=>s+(p.compl||0),0)/g.length).toFixed(1),
+      top:Math.round(g.reduce((s,p)=>s+(p.top_adec||0),0)/g.length),
+      aud:Math.round(g.reduce((s,p)=>s+(p.audit_adec||0),0)/g.length),
+      polimed:g.filter(p=>p.polimed).length,
+    };
+  };
+
+  const sA=stats(grupoA), sB=stats(grupoB);
+  const labelA=modo==="simple"?(campoInfo.tipo==="bool"?campoInfo.l+" = Sí":valorA):"Grupo A";
+  const labelB=modo==="simple"?(campoInfo.tipo==="bool"?campoInfo.l+" = No":"Resto"):"Grupo B";
+
+  const CompBar=({labelRow,nA,nB})=>{
+    const total=nA+nB; if(!total) return null;
+    return (
+      <div style={{marginBottom:8}}>
+        <div style={{fontSize:11,color:"#475569",marginBottom:3}}>{labelRow}</div>
+        <div style={{display:"flex",gap:4,alignItems:"center"}}>
+          <div style={{width:nA/(total)*100+"%",maxWidth:"48%",minWidth:4,height:16,background:"#3B82F6",borderRadius:"4px 0 0 4px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <span style={{fontSize:9,color:"white",fontWeight:700}}>{nFmt(nA)}</span>
+          </div>
+          <div style={{width:nB/(total)*100+"%",maxWidth:"48%",minWidth:4,height:16,background:"#94A3B8",borderRadius:"0 4px 4px 0",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <span style={{fontSize:9,color:"white",fontWeight:700}}>{nFmt(nB)}</span>
+          </div>
+        </div>
+      </div>
     );
-  }
+  };
 
-  // ── TAB ANÁLISIS ─────────────────────────────────────────────
-  // ── LISTADO EXTERNO ───────────────────────────────────────────
-  function SeccionListado({pacs}){
-    const [estado,setEstado]=useState("idle"); // idle|procesando|listo
-    const [resultado,setResultado]=useState(null);
-    const [error,setError]=useState(null);
-    const fileRef = React.useRef();
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* SELECTOR MODO */}
+      <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 16px"}}>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          {[["simple","📊 Simple","Un grupo vs el resto"],["complejo","📈 Complejo","Grupo A vs Grupo B independiente"]].map(([k,l,d])=>(
+            <button key={k} onClick={()=>{setModo(k);setEjecutado(false);}} style={{flex:1,padding:"10px",border:`2px solid ${modo===k?"#3B82F6":"#E2E8F0"}`,borderRadius:8,background:modo===k?"#EFF6FF":"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+              <div style={{fontSize:13,fontWeight:700,color:modo===k?"#1D4ED8":"#1E293B"}}>{l}</div>
+              <div style={{fontSize:10,color:"#94A3B8"}}>{d}</div>
+            </button>
+          ))}
+        </div>
 
-    const procesarArchivo = async(file) => {
-      setEstado("procesando"); setError(null); setResultado(null);
+        {modo==="simple"&&(
+          <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}}>Campo de análisis</div>
+              <select value={campoA} onChange={e=>{setCampoA(e.target.value);setEjecutado(false);setValorA(campos.find(c=>c.k===e.target.value)?.opts?.[0]||"");}}
+                style={{width:"100%",padding:"7px 10px",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"inherit"}}>
+                {campos.map(c=><option key={c.k} value={c.k}>{c.l}</option>)}
+              </select>
+            </div>
+            {campoInfo.tipo==="select"&&(
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}}>Valor</div>
+                <select value={valorA} onChange={e=>{setValorA(e.target.value);setEjecutado(false);}}
+                  style={{width:"100%",padding:"7px 10px",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"inherit"}}>
+                  {(campoInfo.opts||[]).map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            )}
+            <button onClick={()=>setEjecutado(true)}
+              style={{padding:"7px 20px",background:"#1D4ED8",border:"none",borderRadius:7,color:"white",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+              ▶ Ejecutar
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* RESULTADOS */}
+      {ejecutado&&grupoA.length>0&&(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {[{label:labelA,s:sA,color:"#3B82F6"},{label:labelB,s:sB,color:"#94A3B8"}].map(({label,s,color})=>(
+            <div key={label} style={{background:"white",border:`2px solid ${color}30`,borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:13,fontWeight:800,color,marginBottom:2}}>{label}</div>
+              <div style={{fontSize:36,fontWeight:900,color,lineHeight:1}}>{nFmt(s.N)}</div>
+              <div style={{fontSize:11,color:"#64748B",marginBottom:10}}>{pct(s.N,pacientes.length)}% del total</div>
+              {[
+                ["♂ Hombres",nFmt(s.h),pct(s.h,s.N)+"%"],
+                ["♀ Mujeres",nFmt(s.mujeres),pct(s.mujeres,s.N)+"%"],
+                ["Edad media",s.edadMedia+" años",""],
+                ["Complejidad media",s.compl,""],
+                ["TOP adecuación",s.top+"%",""],
+                ["Auditoría",s.aud+"%",""],
+              ].map(([l,v,sub])=>(
+                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #F8FAFC"}}>
+                  <span style={{fontSize:11,color:"#64748B"}}>{l}</span>
+                  <div style={{textAlign:"right"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"#1E293B"}}>{v}</span>
+                    {sub&&<span style={{fontSize:10,color:"#94A3B8",marginLeft:4}}>{sub}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          <div style={{gridColumn:"span 2",background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#1E293B",marginBottom:10}}>Comparativa por grupo de población</div>
+            {Object.entries(POB_DEF).map(([pob,c])=>{
+              const nA=grupoA.filter(p=>p.pob===pob).length;
+              const nB=grupoB.filter(p=>p.pob===pob).length;
+              if(!nA&&!nB) return null;
+              return <CompBar key={pob} labelRow={pob} nA={nA} nB={nB}/>;
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ⓬  APP PRINCIPAL — INTEGRACIÓN FINAL
+// ════════════════════════════════════════════════════════════════════════════
+function App() {
+  const [loading,setLoading]=useState(true);
+  const [progreso,setProgreso]=useState(0);
+  const [error,setError]=useState(null);
+  const [pacientes,setPacientes]=useState([]);
+  const [tab,setTab]=useState("VISOR");
+  const [role,setRole]=useState("ADM");
+  const [filtros,setFiltros]=useState([]);
+  const [savedFiltros,setSavedFiltros]=useState([]);
+  const [savedAnalisis,setSavedAnalisis]=useState([]);
+  const [loadedGrupos,setLoadedGrupos]=useState([]);
+  const [criteriosData,setCriteriosData]=useState({});
+
+  // ── CARGA INICIAL ─────────────────────────────────────────────────────────
+  useEffect(()=>{
+    const cargar=async()=>{
       try {
-        const txt = await file.text();
-        let ids = [];
-
-        if(file.name.endsWith(".csv")){
-          // CSV: buscar columnas id, cic, paciente, patient
-          const lines = txt.split("\n").filter(l=>l.trim());
-          const header = lines[0].toLowerCase().split(/[,;\t]/);
-          const idxId  = header.findIndex(h=>["id","paciente","patient"].includes(h.trim()));
-          const idxCic = header.findIndex(h=>h.trim()==="cic");
-          const col = idxId>=0?idxId:idxCic>=0?idxCic:0;
-          ids = lines.slice(1).map(l=>l.split(/[,;\t]/)[col]?.trim()).filter(Boolean);
+        const data=await cargarTodosPacientes(setProgreso);
+        if (data.length===0) {
+          // Sin datos en Supabase — carga demo de 10 pacientes de ejemplo
+          console.warn("Supabase devolvió 0 registros. Usando datos DEMO.");
+          setPacientes(DEMO_PACIENTES);
         } else {
-          // Excel: parsear como texto línea a línea (sin librerías)
-          // Leer como ArrayBuffer e intentar extraer strings
-          const buf = await file.arrayBuffer();
-          const bytes = new Uint8Array(buf);
-          // Extraer strings ASCII/UTF-8 del binario (heurístico para xlsx)
-          let str="", found=[];
-          for(let i=0;i<bytes.length-1;i++){
-            const c=bytes[i];
-            if(c>=48&&c<=57){ str+=String.fromCharCode(c); }
-            else if(str.length>=5&&str.length<=15){ found.push(str); str=""; }
-            else { str=""; }
-          }
-          // Filtrar los que parecen IDs numéricos de 6-12 dígitos
-          ids = [...new Set(found.filter(s=>/^\d{6,12}$/.test(s)))];
+          setPacientes(data);
         }
-
-        if(!ids.length){ setError("No se encontraron IDs válidos en el archivo. Usa CSV con columna 'id' o 'cic'."); setEstado("idle"); return; }
-
-        // Cruzar con la BD en memoria
-        const idSet   = new Set(ids);
-        const cicSet  = new Set(ids);
-        const enBD    = pacs.filter(p=> idSet.has(String(p.id)) || cicSet.has(String(p.cic)));
-        const idsEnBD = new Set([...enBD.map(p=>String(p.id)), ...enBD.map(p=>String(p.cic))]);
-        const noEnBD  = ids.filter(id=> !idsEnBD.has(id));
-
-        setResultado({ total:ids.length, enBD, noEnBD, ids });
-        setEstado("listo");
-      } catch(e){
-        setError("Error al procesar el archivo: "+e.message);
-        setEstado("idle");
+        setProgreso(100);
+        setTimeout(()=>setLoading(false),400);
+      } catch(e) {
+        setError(e.message||"Error de conexión con Supabase");
+        setPacientes(DEMO_PACIENTES);
+        setLoading(false);
       }
     };
+    cargar();
+  },[]);
 
-    const descargarNoEncontrados = () => {
-      if(!resultado?.noEnBD?.length) return;
-      const csv = "id_o_cic\n" + resultado.noEnBD.join("\n");
-      const blob = new Blob([csv],{type:"text/csv;charset=utf-8;"});
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href=url; a.download="pacientes_no_encontrados.csv"; a.click();
-      URL.revokeObjectURL(url);
-    };
-
-    const N = resultado?.enBD?.length||0;
-    const nFmt2 = n=>Number(n||0).toLocaleString("es-ES");
-
-    return h('div',{style:{marginTop:20}},
-      // CABECERA
-      h('div',{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}},
-        h('div',{style:{width:8,height:8,borderRadius:"50%",background:"#6366F1"}}),
-        h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B"}}, "Análisis de listado externo"),
-        h('div',{style:{fontSize:12,color:"#64748B"}},"Sube un Excel o CSV con IDs/CICs para cruzar con la BD")
-      ),
-
-      // ZONA SUBIDA
-      estado!=="listo"&&h('div',{
-        onClick:()=>fileRef.current?.click(),
-        onDragOver:e=>e.preventDefault(),
-        onDrop:e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) procesarArchivo(f); },
-        style:{border:"2px dashed #CBD5E1",borderRadius:12,padding:"32px 24px",textAlign:"center",cursor:"pointer",background:"#FAFBFC",transition:"border-color .2s"},
-        onMouseEnter:e=>e.currentTarget.style.borderColor="#6366F1",
-        onMouseLeave:e=>e.currentTarget.style.borderColor="#CBD5E1",
-      },
-        estado==="procesando"
-          ? h('div',{},"⏳ Procesando archivo…")
-          : h('div',{},
-              h('div',{style:{fontSize:32,marginBottom:8}},"📂"),
-              h('div',{style:{fontSize:13,fontWeight:700,color:"#475569",marginBottom:4}},"Arrastra aquí tu archivo o haz clic para seleccionar"),
-              h('div',{style:{fontSize:11,color:"#94A3B8"}},"Formatos soportados: Excel (.xlsx) · CSV (.csv)"),
-              h('div',{style:{fontSize:11,color:"#94A3B8",marginTop:4}},"El archivo debe tener una columna con 'id' o 'cic'")
-            ),
-        h('input',{ref:fileRef,type:"file",accept:".xlsx,.xls,.csv",style:{display:"none"},
-          onChange:e=>{ const f=e.target.files[0]; if(f) procesarArchivo(f); }})
-      ),
-
-      // ERROR
-      error&&h('div',{style:{padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,fontSize:12,color:"#991B1B",marginTop:8}},
-        "❌ "+error
-      ),
-
-      // RESULTADOS
-      resultado&&h('div',{style:{marginTop:16}},
-
-        // RESUMEN NUMÉRICO
-        h('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}},
-          [
-            ["Total en listado",    resultado.total,     "#6366F1"],
-            ["✅ Encontrados en BD", resultado.enBD.length, "#059669"],
-            ["❌ No encontrados",    resultado.noEnBD.length,"#DC2626"],
-          ].map(([l,n,c])=>h('div',{key:l,style:{background:c+"10",border:"1px solid "+c+"30",borderRadius:10,padding:"14px 16px",textAlign:"center"}},
-            h('div',{style:{fontSize:11,color:c,fontWeight:700,marginBottom:4}},l),
-            h('div',{style:{fontSize:36,fontWeight:900,color:c,lineHeight:1}}),
-            h('div',{style:{fontSize:32,fontWeight:900,color:c,lineHeight:1}},nFmt2(n)),
-            h('div',{style:{fontSize:11,color:"#94A3B8",marginTop:4}},
-              n>0?((n/resultado.total*100).toFixed(1)+"%"):""
-            )
-          ))
-        ),
-
-        // BOTÓN DESCARGAR NO ENCONTRADOS
-        resultado.noEnBD.length>0&&h('div',{style:{marginBottom:16}},
-          h('button',{onClick:descargarNoEncontrados,
-            style:{display:"flex",alignItems:"center",gap:8,padding:"9px 18px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,color:"#991B1B",fontSize:12,fontWeight:700,cursor:"pointer"}},
-            "⬇️  Descargar listado de NO encontrados ("+nFmt2(resultado.noEnBD.length)+" pacientes)"
-          )
-        ),
-
-        // ANÁLISIS DE LOS ENCONTRADOS
-        N>0&&h('div',{},
-          h('div',{style:{fontSize:13,fontWeight:800,color:"#1E293B",marginBottom:10}},
-            "Características de los "+nFmt2(N)+" pacientes encontrados"
-          ),
-          // GRUPOS DE POBLACIÓN
-          h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px",marginBottom:10}},
-            h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.7,marginBottom:10}},"Grupo de Población"),
-            Object.entries(POB).map(([pob,c])=>{
-              const n=resultado.enBD.filter(p=>p.pob===pob).length;
-              if(!n) return null;
-              return h('div',{key:pob,style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
-                h('div',{style:{width:10,height:10,borderRadius:2,background:c.bg,flexShrink:0}}),
-                h('span',{style:{width:200,fontSize:11,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},pob),
-                h('div',{style:{flex:1,height:12,background:"#F1F5F9",borderRadius:4,overflow:"hidden"}},
-                  h('div',{style:{height:"100%",width:pct(n,N)+"%",background:c.bg,borderRadius:4}})
-                ),
-                h('span',{style:{width:36,fontWeight:700,color:"#1E293B",fontSize:12,textAlign:"right"}},n),
-                h('span',{style:{width:42,color:"#94A3B8",fontSize:10,textAlign:"right"}},pct(n,N)+"%")
-              );
-            }),
-          ),
-          // PERFILES Y STATS
-          h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
-            h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
-              h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.7,marginBottom:10}},"Perfiles activos"),
-              CARACTS.map(c=>{
-                const n=resultado.enBD.filter(p=>p[c.k]).length;
-                if(!n) return null;
-                return h('div',{key:c.k,style:{display:"flex",alignItems:"center",gap:8,marginBottom:5}},
-                  h('div',{style:{width:8,height:8,borderRadius:"50%",background:c.c,flexShrink:0}}),
-                  h('span',{style:{flex:1,fontSize:11,color:"#475569"}},c.l),
-                  h('span',{style:{fontWeight:700,color:c.c,fontSize:12}},n),
-                  h('span',{style:{color:"#94A3B8",fontSize:10,marginLeft:2}},pct(n,N)+"%")
-                );
-              })
-            ),
-            h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
-              h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.7,marginBottom:10}},"Índices medios"),
-              [
-                ["Complejidad media",   +(resultado.enBD.reduce((s,p)=>s+(p.compl||0),0)/N).toFixed(1),"#6366F1"],
-                ["Comorbilidad media",  +(resultado.enBD.reduce((s,p)=>s+(p.co||0),0)/N).toFixed(1),"#0891B2"],
-                ["Hiperfrecuent. media",+(resultado.enBD.reduce((s,p)=>s+(p.fr||0),0)/N).toFixed(1),"#D97706"],
-                ["TOP adecuación",      Math.round(resultado.enBD.reduce((s,p)=>s+(p.top_adec||0),0)/N)+"%","#059669"],
-                ["Auditoría",           Math.round(resultado.enBD.reduce((s,p)=>s+(p.audit_adec||0),0)/N)+"%","#7C3AED"],
-                ["Con pendientes aud.", resultado.enBD.filter(p=>(p.audit_pend||[]).length>0).length,"#DC2626"],
-              ].map(([l,v,c])=>h('div',{key:l,style:{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #F8FAFC"}},
-                h('span',{style:{fontSize:11,color:"#64748B"}},l),
-                h('span',{style:{fontSize:13,fontWeight:700,color:c}},v)
-              ))
-            )
-          )
-        ),
-
-        // BOTÓN NUEVA BÚSQUEDA
-        h('button',{onClick:()=>{setEstado("idle");setResultado(null);setError(null);},
-          style:{marginTop:14,padding:"8px 18px",background:"#F1F5F9",border:"1px solid #E2E8F0",borderRadius:7,color:"#475569",fontSize:12,fontWeight:600,cursor:"pointer"}},
-          "🔄 Nuevo listado"
-        )
-      )
-    );
-  }
-
-  function TabAnalisis({pacs}){
-    const [campo,setCampo]=useState("pob");
-    const [valor,setValor]=useState(Object.keys(POB)[0]);
-    const [ejecutado,setEjecutado]=useState(false);
-
-    const campos=[
-      {k:"pob",   l:"Grupo Población", tipo:"select", opts:Object.keys(POB)},
-      {k:"geron", l:"Gerontológico",   tipo:"bool"},
-      {k:"pal",   l:"Paliativo",       tipo:"bool"},
-      {k:"dep",   l:"Dep. Domicilio",  tipo:"bool"},
-      {k:"hfh",   l:"HF Hospitalario", tipo:"bool"},
-      {k:"hfap",  l:"HF AP",           tipo:"bool"},
-      {k:"comorb",l:"Comorbilidad",    tipo:"bool"},
-      {k:"polimed",l:"Polimedicado",   tipo:"bool"},
-      {k:"gip_ap",l:"GIP AP",          tipo:"bool"},
-      {k:"gip_hosp",l:"GIP Hosp.",     tipo:"bool"},
-      {k:"osi",   l:"OSI",             tipo:"select", opts:["01 OSID","02 OSIT","03 RESTO OSI"]},
-      {k:"centro",l:"Centro",          tipo:"select", opts:CENTROS},
-    ];
-    const ci = campos.find(c=>c.k===campo)||campos[0];
-
-    const grA = pacs.filter(p=> ci.tipo==="bool" ? Boolean(p[campo]) : p[campo]===valor);
-    const grB = pacs.filter(p=> ci.tipo==="bool" ? !p[campo]         : p[campo]!==valor);
-    const lblA= ci.tipo==="bool" ? ci.l+" = Sí" : valor;
-    const lblB= ci.tipo==="bool" ? ci.l+" = No" : "Resto";
-
-    const stats=g=>{
-      if(!g.length) return {N:0,H:0,M:0,edad:0,compl:0,top:0,aud:0};
-      return {
-        N:g.length,
-        H:g.filter(p=>p.sexo==="H").length,
-        M:g.filter(p=>p.sexo==="M").length,
-        edad:+(g.reduce((s,p)=>s+p.edad,0)/g.length).toFixed(1),
-        compl:+(g.reduce((s,p)=>s+(p.compl||0),0)/g.length).toFixed(1),
-        top:Math.round(g.reduce((s,p)=>s+(p.top_adec||0),0)/g.length),
-        aud:Math.round(g.reduce((s,p)=>s+(p.audit_adec||0),0)/g.length),
-      };
-    };
-    const sA=stats(grA), sB=stats(grB);
-
-    const Card=({lbl,s,color})=>h('div',{style:{background:"white",border:"2px solid "+color+"30",borderRadius:10,padding:"16px 18px"}},
-      h('div',{style:{fontSize:13,fontWeight:800,color,marginBottom:2}},lbl),
-      h('div',{style:{fontSize:40,fontWeight:900,color,lineHeight:1}},nFmt(s.N)),
-      h('div',{style:{fontSize:11,color:"#64748B",marginBottom:12}},pct(s.N,pacs.length)+"% del total"),
-      [["♂ Hombres",nFmt(s.H),pct(s.H,s.N)+"%"],
-       ["♀ Mujeres",nFmt(s.M),pct(s.M,s.N)+"%"],
-       ["Edad media",s.edad+" años",""],
-       ["Complejidad media",s.compl,""],
-       ["TOP adecuación",s.top+"%",""],
-       ["Auditoría media",s.aud+"%",""],
-      ].map(([l,v,sub])=>h('div',{key:l,style:{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #F8FAFC"}},
-        h('span',{style:{fontSize:11,color:"#64748B"}},l),
-        h('div',{style:{textAlign:"right"}},
-          h('span',{style:{fontSize:12,fontWeight:700,color:"#1E293B"}},v),
-          sub&&h('span',{style:{fontSize:10,color:"#94A3B8",marginLeft:4}},sub)
-        )
-      ))
-    );
-
-    return h('div',{style:{display:"flex",flexDirection:"column",gap:14}},
-      // CONFIGURACIÓN
-      h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
-        h('div',{style:{fontSize:13,fontWeight:800,color:"#1E293B",marginBottom:12}},"📊 Análisis comparativo — Grupo vs Resto"),
-        h('div',{style:{display:"flex",gap:8,alignItems:"flex-end"}},
-          h('div',{style:{flex:1}},
-            h('div',{style:{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}},"Campo de análisis"),
-            h('select',{value:campo,onChange:e=>{setCampo(e.target.value);setEjecutado(false);setValor(campos.find(c=>c.k===e.target.value)?.opts?.[0]||"");},
-              style:{width:"100%",padding:"8px 10px",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12}},
-              campos.map(c=>h('option',{key:c.k,value:c.k},c.l))
-            )
-          ),
-          ci.tipo==="select"&&h('div',{style:{flex:1}},
-            h('div',{style:{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}},"Valor"),
-            h('select',{value:valor,onChange:e=>{setValor(e.target.value);setEjecutado(false);},
-              style:{width:"100%",padding:"8px 10px",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12}},
-              (ci.opts||[]).map(o=>h('option',{key:o,value:o},o))
-            )
-          ),
-          h('button',{onClick:()=>setEjecutado(true),
-            style:{padding:"8px 22px",background:"#1D4ED8",border:"none",borderRadius:7,color:"white",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}},
-            "▶ Ejecutar"
-          )
-        )
-      ),
-
-      // RESULTADOS
-      ejecutado&&grA.length>0&&h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
-        h(Card,{lbl:lblA,s:sA,color:"#3B82F6"}),
-        h(Card,{lbl:lblB,s:sB,color:"#94A3B8"}),
-
-        // Comparativa por grupo de población
-        h('div',{style:{gridColumn:"span 2",background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
-          h('div',{style:{fontSize:12,fontWeight:700,color:"#1E293B",marginBottom:12}},"Comparativa por grupo de población"),
-          Object.entries(POB).map(([pob,c])=>{
-            const nA=grA.filter(p=>p.pob===pob).length;
-            const nB=grB.filter(p=>p.pob===pob).length;
-            if(!nA&&!nB) return null;
-            const tot=nA+nB;
-            return h('div',{key:pob,style:{marginBottom:8}},
-              h('div',{style:{fontSize:11,color:"#475569",marginBottom:3}},pob),
-              h('div',{style:{display:"flex",gap:4,alignItems:"center"}},
-                h('div',{style:{width:Math.round(nA/tot*100)+"%",minWidth:4,height:16,background:"#3B82F6",borderRadius:"4px 0 0 4px",display:"flex",alignItems:"center",justifyContent:"center"}},
-                  nA>0&&h('span',{style:{fontSize:9,color:"white",fontWeight:700}},nFmt(nA))
-                ),
-                h('div',{style:{width:Math.round(nB/tot*100)+"%",minWidth:4,height:16,background:"#94A3B8",borderRadius:"0 4px 4px 0",display:"flex",alignItems:"center",justifyContent:"center"}},
-                  nB>0&&h('span',{style:{fontSize:9,color:"white",fontWeight:700}},nFmt(nB))
-                )
-              )
-            );
-          })
-        )
-      ),
-
-      ejecutado&&grA.length===0&&h('div',{style:{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}},"Sin pacientes para este grupo con los filtros actuales.")
-    );
-  }
-
-  // ── TAB FILTROS ──────────────────────────────────────────────
-  function TabFiltros({filtros,setFiltros,pacs,loadedG,onLoadG}){
-    const [exp,setExp]=useState({});
-    const tog=k=>setExp(e=>({...e,[k]:!e[k]}));
-    const add=f=>setFiltros(prev=>[...prev,{...f,id:Date.now(),logica:"Y"}]);
-    const rem=id=>setFiltros(prev=>prev.filter(x=>x.id!==id));
-    const upd=(id,l)=>setFiltros(prev=>prev.map(f=>f.id===id?{...f,logica:l}:f));
-    const LC={Y:"#3B82F6",O:"#D97706",NO:"#DC2626"};
-    const nF=applyF(pacs,filtros).length;
-
-    const Sec=({k,label,badge,children})=>h('div',{style:{border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden",marginBottom:6}},
-      h('div',{onClick:()=>tog(k),style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#F8FAFC",cursor:"pointer",userSelect:"none"}},
-        h('div',{style:{display:"flex",alignItems:"center",gap:6}},
-          h('span',{style:{fontSize:12,fontWeight:700,color:"#1E293B"}},label),
-          badge&&h('span',{style:{fontSize:9,background:"#DBEAFE",color:"#1D4ED8",padding:"1px 6px",borderRadius:3,fontWeight:700}},badge)
-        ),
-        h('span',{style:{fontSize:10,color:"#94A3B8"}},exp[k]?"▲":"▼")
-      ),
-      exp[k]&&h('div',{style:{padding:"10px 12px"}},children)
-    );
-    const FB=({campo,label})=>h('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}},
-      h('span',{style:{fontSize:12,color:"#475569"}},label),
-      h('div',{style:{display:"flex",gap:4}},
-        ["Sí","No"].map(v=>h('button',{key:v,onClick:()=>add({campo,label:label+"="+v,tipo:"bool",valor:v==="Sí"}),
-          style:{padding:"3px 9px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:5,background:"white",cursor:"pointer",color:"#475569"}},v))
-      )
-    );
-    const FS=({campo,label,opts})=>h('div',{style:{marginBottom:6}},
-      h('div',{style:{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}},label),
-      h('div',{style:{display:"flex",flexWrap:"wrap",gap:3}},
-        opts.map(o=>h('button',{key:o,onClick:()=>add({campo,label:label+"="+o,tipo:"select",valor:o}),
-          style:{padding:"2px 7px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}},o))
-      )
-    );
-
-    return h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
-      h('div',{},
-        h('div',{style:{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}},"📋 Datos Básicos"),
-        h(Sec,{k:"sexo",label:"Sexo"},
-          h('div',{style:{display:"flex",gap:4}},
-            [["H","♂ Hombre","#1D4ED8","#EFF6FF"],["M","♀ Mujer","#BE185D","#FDF2F8"]].map(([v,l,c,bg])=>
-              h('button',{key:v,onClick:()=>add({campo:"sexo",label:"Sexo="+l,tipo:"select",valor:v}),
-                style:{flex:1,padding:"6px",fontSize:11,border:`1px solid ${c}30`,borderRadius:5,background:bg,cursor:"pointer",color:c,fontWeight:600}},l)
-            )
-          )
-        ),
-        h(Sec,{k:"osi",label:"OSI"},h(FS,{campo:"osi",label:"OSI",opts:["01 OSID","02 OSIT","03 RESTO OSI"]})),
-        h(Sec,{k:"centro",label:"Centro"},h(FS,{campo:"centro",label:"Centro",opts:CENTROS})),
-        h(Sec,{k:"bloque",label:"Bloque PCRON"},h(FS,{campo:"bloque",label:"Bloque",opts:BLOQUES})),
-        h(Sec,{k:"gip",label:"Programas GIP"},
-          h(FB,{campo:"gip_ap",label:"GIP AP"}),
-          h(FB,{campo:"gip_hosp",label:"GIP Hosp."}),
-          h(FB,{campo:"gip_osarean",label:"GIP OSAREAN"})
-        )
-      ),
-      h('div',{},
-        h('div',{style:{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}},"🏷️ Características"),
-        h(Sec,{k:"pob",label:"Grupo Población"},h(FS,{campo:"pob",label:"Grupo",opts:Object.keys(POB)})),
-        h(Sec,{k:"perfiles",label:"Perfiles"},CARACTS.map(c=>h(FB,{key:c.k,campo:c.k,label:c.l}))),
-        h(Sec,{k:"top",label:"TOP Adecuación"},
-          h('div',{style:{display:"flex",gap:4}},
-            [["≥80%",80,100],["60–79%",60,79],["<60%",0,59]].map(([l,mn,mx])=>
-              h('button',{key:l,onClick:()=>add({campo:"top_adec",label:"TOP "+l,tipo:"range",min:mn,max:mx}),
-                style:{flex:1,padding:"5px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}},l)
-            )
-          )
-        )
-      ),
-      h('div',{},
-        h('div',{style:{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}},"📦 Criterios Clínicos"),
-        GRUPOS_CRIT.map(g=>{
-          const loaded=loadedG.includes(g.id);
-          return h(Sec,{key:g.id,k:"c_"+g.id,label:g.label,badge:loaded?"✅":"📦 No cargado"},
-            !loaded
-              ? h('div',{style:{textAlign:"center",padding:"10px 0"}},
-                  h('div',{style:{fontSize:11,color:"#94A3B8",marginBottom:8}},"No descargado"),
-                  h('button',{onClick:()=>onLoadG(g.id,pacs.slice(0,5000).map(p=>p.id)),
-                    style:{padding:"6px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}},
-                    "📦 Cargar desde Supabase")
-                )
-              : g.keys.map(k=>h(FB,{key:k,campo:k,label:k.replace("crit_","").replace(/_/g," ")}))
-          );
-        }),
-        filtros.length>0&&h('div',{style:{marginTop:12,padding:"10px 12px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:9}},
-          h('div',{style:{fontSize:10,fontWeight:700,color:"#1D4ED8",marginBottom:6}},"FILTROS ACTIVOS ("+filtros.length+")"),
-          filtros.map(f=>h('div',{key:f.id,style:{display:"flex",alignItems:"center",gap:5,marginBottom:4}},
-            h('select',{value:f.logica,onChange:e=>upd(f.id,e.target.value),
-              style:{fontSize:9,fontWeight:700,padding:"1px 3px",borderRadius:3,border:"none",background:LC[f.logica]+"20",color:LC[f.logica],cursor:"pointer"}},
-              ["Y","O","NO"].map(l=>h('option',{key:l,value:l},l))
-            ),
-            h('span',{style:{fontSize:10,flex:1,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},f.label),
-            h('button',{onClick:()=>rem(f.id),style:{background:"none",border:"none",color:"#94A3B8",cursor:"pointer",fontSize:14,lineHeight:1}},"×")
-          )),
-          h('div',{style:{borderTop:"1px solid #BFDBFE",marginTop:8,paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
-            h('span',{style:{fontSize:10,color:"#1D4ED8",fontWeight:700}},"→ "+nFmt(nF)+" pacientes"),
-            h('button',{onClick:()=>setFiltros([]),style:{padding:"4px 10px",background:"#DC2626",border:"none",borderRadius:5,color:"white",fontSize:11,cursor:"pointer"}},"Limpiar")
-          )
-        )
-      )
-    );
-  }
-
-  // ── APP ──────────────────────────────────────────────────────
-  function App(){
-    const [loading,setLoading]=useState(true);
-    const [prog,setProg]=useState(0);
-    const [err,setErr]=useState(null);
-    const [pacs,setPacs]=useState([]);
-    const [tab,setTab]=useState("VISOR");
-    const [role,setRole]=useState("ADM");
-    const [filtros,setFiltros]=useState([]);
-    const [loadedG,setLoadedG]=useState([]);
-    const [critsData,setCritsData]=useState({});
-
-    useEffect(()=>{
-      setBar(90,"Conectando con Supabase…");
-      cargarPacs(p=>{setProg(p);setBar(90+p*.1,"Cargando pacientes… "+p+"%");})
-        .then(data=>{
-          setPacs(data);
-          document.getElementById('boot').style.display='none';
-          setLoading(false);
-        })
-        .catch(e=>{
-          setErr(e.message);
-          document.getElementById('boot').style.display='none';
-          setLoading(false);
+  // ── CARGA LAZY CRITERIOS ─────────────────────────────────────────────────
+  const handleLoadGrupo=useCallback(async(grupoId, ids)=>{
+    if(loadedGrupos.includes(grupoId)) return;
+    const grupo=GRUPOS_CRITERIOS.find(g=>g.id===grupoId);
+    if(!grupo) return;
+    try {
+      const map=await cargarCriteriosGrupo(grupo, ids);
+      if(Object.keys(map).length>0) {
+        setCriteriosData(prev=>{
+          const next={...prev};
+          grupo.keys.forEach(k=>{next[k]=next[k]||{};Object.entries(map).forEach(([id,row])=>{next[k][id]=row;});});
+          return next;
         });
-    },[]);
+      }
+      setLoadedGrupos(prev=>[...prev,grupoId]);
+    } catch(e) {
+      console.error("Error cargando criterios:",e);
+    }
+  },[loadedGrupos]);
 
-    const handleLoadG=useCallback(async(gid,ids)=>{
-      if(loadedG.includes(gid)) return;
-      const g=GRUPOS_CRIT.find(x=>x.id===gid);
-      if(!g) return;
-      const map=await cargarCrits(g,ids);
-      if(Object.keys(map).length) setCritsData(prev=>{
-        const next={...prev};
-        g.keys.forEach(k=>{next[k]=next[k]||{};Object.entries(map).forEach(([id,row])=>{next[k][id]=row;});});
-        return next;
-      });
-      setLoadedG(prev=>[...prev,gid]);
-    },[loadedG]);
+  const canCIC=ROLES_DEF[role]?.cic||false;
+  const pacientesFiltrados=useMemo(()=>applyFiltros(pacientes,filtros),[pacientes,filtros]);
+  const pctTotal=+pct(pacientesFiltrados.length,META.totalBD);
 
-    const canCIC=ROLES[role]?.cic||false;
-    const filPacs=useMemo(()=>applyF(pacs,filtros),[pacs,filtros]);
-    const pctT=+pct(filPacs.length,META.totalBD);
-    const TABS=[{k:"VISOR",i:"🏠"},{k:"FILTROS",i:"🎛"},{k:"ESTADÍSTICAS",i:"📊"},{k:"DETALLE",i:"📋"},{k:"ANÁLISIS",i:"📈"},
-      ...(ROLES[role]?.adm?[{k:"ADMINISTRACIÓN",i:"⚙️",adm:true}]:[])];
+  const TABS=[
+    {k:"VISOR",       icon:"🏠"},
+    {k:"FILTROS",     icon:"🎛"},
+    {k:"ESTADÍSTICAS",icon:"📊"},
+    {k:"DETALLE",     icon:"📋"},
+    {k:"ANÁLISIS",    icon:"📈"},
+    ...(ROLES_DEF[role]?.admin?[{k:"ADMINISTRACIÓN",icon:"⚙️",admin:true}]:[]),
+  ];
 
-    if(loading) return h('div',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"#94A3B8",fontSize:14}},"Cargando…");
+  if(loading) return <PantallaCarga progreso={progreso} error={error} onRetry={()=>window.location.reload()}/>;
 
-    return h('div',{style:{fontFamily:"system-ui,sans-serif",background:"#F0F4F8",minHeight:"100vh"}},
-      // TOPBAR
-      h('div',{style:{background:"linear-gradient(135deg,#060E1E,#0F2444)",padding:"9px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-        h('div',{style:{display:"flex",alignItems:"center",gap:10}},
-          h('div',{style:{width:34,height:34,borderRadius:8,background:"linear-gradient(135deg,#3B82F6,#06B6D4)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:900,fontSize:16}},"V"),
-          h('div',{},
-            h('div',{style:{color:"white",fontWeight:800,fontSize:14,letterSpacing:1}},"VISOR PCRON"),
-            h('div',{style:{color:"#475569",fontSize:10}},"Paciente Crónico · Osakidetza · "+META.version+" · "+META.fecha)
-          )
-        ),
-        h('div',{style:{display:"flex",alignItems:"center",gap:10}},
-          err&&h('div',{style:{background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:5,padding:"3px 10px",fontSize:10,color:"#991B1B",fontWeight:700,maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"⚠️ "+err),
-          !err&&h('div',{style:{fontSize:11,color:"#93C5FD",fontWeight:600}},nFmt(pacs.length)+" pacientes"),
-          h('div',{style:{width:8,height:8,borderRadius:"50%",background:pacs.length>0?"#22C55E":"#EF4444",boxShadow:"0 0 6px "+(pacs.length>0?"#22C55E":"#EF4444")}}),
-          h('select',{value:role,onChange:e=>setRole(e.target.value),style:{fontSize:11,background:"rgba(255,255,255,0.1)",color:"#CBD5E1",border:"1px solid rgba(255,255,255,0.2)",borderRadius:5,padding:"4px 8px",cursor:"pointer"}},
-            Object.entries(ROLES).map(([k,v])=>h('option',{key:k,value:k,style:{background:"#0F2444"}},v.l))
-          )
-        )
-      ),
-      // HERO
-      h('div',{style:{background:"linear-gradient(160deg,#0B1628,#112240,#0D3458)",padding:"16px 24px 0"}},
-        h('div',{style:{display:"flex",gap:12,marginBottom:14}},
-          h('div',{style:{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(59,130,246,0.4)",borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:20}},
-            h('div',{},
-              h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}},"PACIENTES EN VISTA"),
-              h('div',{style:{color:"white",fontSize:52,fontWeight:900,lineHeight:1,letterSpacing:-2}},nFmt(filPacs.length)),
-              h('div',{style:{color:"#475569",fontSize:11,marginTop:2}},"de "+nFmt(pacs.length)+" en BD")
-            ),
-            h('div',{style:{width:1,height:60,background:"rgba(255,255,255,0.1)"}}),
-            h('div',{},
-              h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}},"% BD TOTAL"),
-              h('div',{style:{color:"#38BDF8",fontSize:40,fontWeight:800,lineHeight:1}},pctT+"%")
-            ),
-            filtros.length>0&&h(Fragment,{},
-              h('div',{style:{width:1,height:60,background:"rgba(255,255,255,0.1)"}}),
-              h('div',{style:{flex:1}},
-                h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:5}},"FILTROS ACTIVOS"),
-                h('div',{style:{display:"flex",flexWrap:"wrap",gap:4}},
-                  filtros.map(f=>h('span',{key:f.id,style:{fontSize:10,padding:"2px 7px",borderRadius:4,fontWeight:600,
-                    background:{Y:"#1D4ED820",O:"#D9770620",NO:"#DC262620"}[f.logica],
-                    color:{Y:"#93C5FD",O:"#FCD34D",NO:"#FCA5A5"}[f.logica],
-                    border:"1px solid "+{Y:"rgba(59,130,246,0.3)",O:"rgba(217,119,6,0.3)",NO:"rgba(220,38,38,0.3)"}[f.logica]}},
-                    h('b',{},f.logica)," ",f.label
-                  ))
-                )
-              )
-            )
-          ),
-          // MINI HISTOGRAM
-          h('div',{style:{width:240,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"10px 12px"}},
-            h('div',{style:{color:"#93C5FD",fontSize:8,fontWeight:700,letterSpacing:1.2,marginBottom:8}},"DISTRIBUCIÓN POR GRUPO"),
-            h('div',{style:{display:"flex",gap:2,alignItems:"flex-end",height:44}},
-              Object.entries(POB).map(([pob,c])=>{
-                const n=filPacs.filter(p=>p.pob===pob).length;
-                const mx=Math.max(...Object.keys(POB).map(k=>filPacs.filter(p=>p.pob===k).length),1);
-                return h('div',{key:pob,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}},
-                  h('div',{style:{width:"100%",height:Math.max(3,Math.round(n/mx*36))+"px",background:c.bg,borderRadius:2,transition:"height .4s"}}),
-                  h('div',{style:{color:c.bg,fontSize:6,fontWeight:700}},n>0?n:"")
+  return (
+    <div style={{fontFamily:"'IBM Plex Sans',system-ui,sans-serif",background:"#F0F4F8",minHeight:"100vh"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800;900&display=swap');*{box-sizing:border-box;}input,button,select,textarea{font-family:inherit;}`}</style>
+
+      {/* TOP BAR */}
+      <div style={{background:"linear-gradient(135deg,#060E1E,#0F2444)",padding:"9px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:7,background:"linear-gradient(135deg,#3B82F6,#06B6D4)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:900,fontSize:15}}>V</div>
+          <div>
+            <div style={{color:"white",fontWeight:800,fontSize:14,letterSpacing:1}}>VISOR PCRON</div>
+            <div style={{color:"#64748B",fontSize:10}}>Paciente Crónico · Osakidetza · {META.version}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {pacientes.length===DEMO_PACIENTES.length&&pacientes[0]?.id===DEMO_PACIENTES[0]?.id&&(
+            <div style={{background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:5,padding:"3px 10px",fontSize:10,color:"#92400E",fontWeight:700}}>
+              ⚠️ MODO DEMO — Configura SUPABASE_URL
+            </div>
+          )}
+          <select value={role} onChange={e=>setRole(e.target.value)} style={{fontSize:10,background:"rgba(255,255,255,0.1)",color:"#CBD5E1",border:"1px solid rgba(255,255,255,0.2)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>
+            {Object.entries(ROLES_DEF).map(([k,v])=><option key={k} value={k} style={{background:"#0F2444"}}>{v.label}</option>)}
+          </select>
+          <div style={{width:30,height:30,borderRadius:"50%",background:"#1E3A5F",border:"2px solid #3B82F6",display:"flex",alignItems:"center",justifyContent:"center",color:"#93C5FD",fontSize:14}}>👤</div>
+        </div>
+      </div>
+
+      {/* HERO DARK */}
+      <div style={{background:"linear-gradient(160deg,#0B1628 0%,#112240 55%,#0D3458 100%)",padding:"16px 24px 0"}}>
+        {/* CONTADOR */}
+        <div style={{display:"flex",gap:12,marginBottom:12}}>
+          <div style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(59,130,246,0.4)",borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:20}}>
+            <div>
+              <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}}>PACIENTES EN VISTA</div>
+              <div style={{color:"white",fontSize:52,fontWeight:900,lineHeight:1,letterSpacing:-2}}>{nFmt(pacientesFiltrados.length)}</div>
+              <div style={{color:"#64748B",fontSize:11,marginTop:2}}>de {nFmt(pacientes.length)} en base de datos</div>
+            </div>
+            <div style={{width:1,height:60,background:"rgba(255,255,255,0.1)"}}/>
+            <div>
+              <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}}>% DEL TOTAL</div>
+              <div style={{color:"#38BDF8",fontSize:40,fontWeight:800,lineHeight:1}}>{pctTotal}%</div>
+            </div>
+            {filtros.length>0&&(
+              <>
+                <div style={{width:1,height:60,background:"rgba(255,255,255,0.1)"}}/>
+                <div style={{flex:1}}>
+                  <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:5}}>FILTROS ACTIVOS</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {filtros.map(f=>(
+                      <span key={f.id} style={{fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:600,
+                        background:{Y:"#1D4ED820",O:"#D9770620",NO:"#DC262620"}[f.logica],
+                        color:{Y:"#93C5FD",O:"#FCD34D",NO:"#FCA5A5"}[f.logica],
+                        border:`1px solid ${{Y:"rgba(59,130,246,0.3)",O:"rgba(217,119,6,0.3)",NO:"rgba(220,38,38,0.3)"}[f.logica]}`}}>
+                        <span style={{fontWeight:800}}>{f.logica}</span> {f.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* MINI HISTOGRAM */}
+          <div style={{width:280,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"10px 12px"}}>
+            <div style={{color:"#93C5FD",fontSize:8,fontWeight:700,letterSpacing:1.2,marginBottom:6}}>DISTRIBUCIÓN POR GRUPO</div>
+            <div style={{display:"flex",gap:3,alignItems:"flex-end",height:40}}>
+              {Object.entries(POB_DEF).map(([pob,c])=>{
+                const n=pacientesFiltrados.filter(p=>p.pob===pob).length;
+                const maxN=Math.max(...Object.keys(POB_DEF).map(k=>pacientesFiltrados.filter(p=>p.pob===k).length),1);
+                return (
+                  <div key={pob} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                    <div style={{width:"100%",height:Math.max(3,n/maxN*34)+"%",background:c.bg,borderRadius:2,transition:"height .4s"}}/>
+                    <div style={{color:c.bg,fontSize:7,fontWeight:700}}>{n>0?n:""}</div>
+                  </div>
                 );
-              })
-            )
-          )
-        ),
-        // TABS
-        h('div',{style:{display:"flex",gap:2}},
-          TABS.map(t=>h('button',{key:t.k,onClick:()=>setTab(t.k),style:{
-            padding:"10px 18px",border:"none",cursor:"pointer",fontSize:12,fontWeight:tab===t.k?700:500,
-            borderRadius:"8px 8px 0 0",borderBottom:"2px solid "+(tab===t.k?(t.adm?"#DC2626":"#3B82F6"):"transparent"),
-            background:tab===t.k?"#F0F4F8":"transparent",
-            color:tab===t.k?(t.adm?"#991B1B":"#1E3A5F"):(t.adm?"#FCA5A5":"#94A3B8"),
-            display:"flex",alignItems:"center",gap:5,transition:"all .15s",
-          }},t.i," ",t.k))
-        )
-      ),
-      // CONTENT
-      h('div',{style:{padding:"16px 24px 40px"}},
-        tab==="VISOR"&&h('div',{style:{display:"flex",flexDirection:"column",gap:14}},
-          // CABECERA
-          h('div',{style:{background:"linear-gradient(135deg,#0F2444,#1E3A5F)",borderRadius:12,padding:"24px 28px",color:"white"}},
-            h('div',{style:{fontSize:22,fontWeight:900,letterSpacing:.5,marginBottom:4}},"VISOR PCRON"),
-            h('div',{style:{fontSize:14,color:"#93C5FD",fontWeight:600,marginBottom:16}},"Gestión del Paciente Crónico · Osakidetza"),
-            h('div',{style:{display:"flex",gap:24,flexWrap:"wrap"}},
-              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Pacientes en BD"),h('div',{style:{fontSize:28,fontWeight:900,color:"white"}},nFmt(pacs.length))),
-              h('div',{style:{width:1,background:"rgba(255,255,255,0.1)"}}),
-              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Fuentes de datos"),h('div',{style:{fontSize:12,fontWeight:600,color:"#93C5FD",marginTop:2}},META.fuente)),
-              h('div',{style:{width:1,background:"rgba(255,255,255,0.1)"}}),
-              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Ultima actualizacion"),h('div',{style:{fontSize:12,fontWeight:600,color:"#93C5FD",marginTop:2}},META.fechaAct)),
-              h('div',{style:{width:1,background:"rgba(255,255,255,0.1)"}}),
-              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Version"),h('div',{style:{fontSize:12,fontWeight:600,color:"#93C5FD",marginTop:2}},META.version))
-            )
-          ),
-          // GRUPOS DE POBLACION
-          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
-            h('div',{style:{fontSize:14,fontWeight:800,color:"#0F2444",marginBottom:4}},"Grupos de Poblacion PCRON"),
-            h('div',{style:{fontSize:12,color:"#64748B",marginBottom:14}},"Jerarquia exclusiva - cada paciente pertenece a un unico grupo"),
-            h('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8}},
-              Object.entries(POB).map(([pob,c])=>h('div',{key:pob,style:{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:9,background:c.lt,border:"1px solid "+c.bg+"30"}},
-                h('div',{style:{width:10,height:10,borderRadius:2,background:c.bg,flexShrink:0}}),
-                h('span',{style:{fontSize:12,fontWeight:600,color:c.bg}},pob)
-              ))
-            )
-          ),
-          // CONFIDENCIALIDAD
-          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #FCD34D",padding:"20px 24px"}},
-            h('div',{style:{fontSize:14,fontWeight:800,color:"#92400E",marginBottom:12}},String.fromCodePoint(0x1F512)+" Confidencialidad y Proteccion de Datos (RGPD)"),
-            h('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}},
-              [["ADM / DIR / MAN","Acceso total - CIC visible","#059669","#D1FAE5"],
-               ["CEN / Jefatura","Solo CICs de su centro","#D97706","#FEF3C7"],
-               ["PROFESIONAL","Solo CICs de sus cupos","#DC2626","#FEE2E2"]
-              ].map(([rol,desc,c,bg])=>h('div',{key:rol,style:{padding:"10px 14px",borderRadius:8,background:bg,border:"1px solid "+c+"30"}},
-                h('div',{style:{fontSize:11,fontWeight:800,color:c,marginBottom:2}},rol),
-                h('div',{style:{fontSize:11,color:"#475569"}},desc)
-              ))
-            ),
-            h('div',{style:{fontSize:11,color:"#92400E",background:"#FEF3C7",padding:"8px 12px",borderRadius:7,border:"1px solid #FCD34D"}},
-              "El CIC es un dato personal sujeto al Reglamento General de Proteccion de Datos (RGPD). Su acceso esta restringido segun el perfil de usuario."
-            )
-          ),
-          // INDICES DE COMPLEJIDAD
-          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
-            h('div',{style:{fontSize:14,fontWeight:800,color:"#0F2444",marginBottom:14}},"Indices de Complejidad"),
-            h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
-              [["COMORBILIDAD","IC x2 + EPOC x2 + I.Renal x1 + Hepatopatia x1 + Anemia x0.5 + Pluripatologico x1 + Ulceras x1","#059669"],
-               ["HIPERFRECUENTACION","CCEE>6 x1 + Reingresos x10 + N MI x5 + N Otras x2 + HaD x1 + Ingreso>10d x2 + URG x2","#0891B2"],
-               ["COMPLEJIDAD","Suma ponderada de bloques A + B + C + D del perfil clinico del paciente","#7C3AED"]
-              ].map(([t,d,c])=>h('div',{key:t,style:{padding:"14px 16px",borderRadius:9,background:c+"08",border:"1px solid "+c+"30"}},
-                h('div',{style:{fontSize:11,fontWeight:800,color:c,marginBottom:6}},t),
-                h('div',{style:{fontSize:11,color:"#475569",lineHeight:1.5}},d)
-              ))
-            )
-          ),
-          // AUDITORIA
-          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
-            h('div',{style:{fontSize:14,fontWeight:800,color:"#0F2444",marginBottom:14}},"Auditoria de Calidad - 4 dimensiones"),
-            h('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginBottom:10}},
-              [["06-18-00-01","Estratificacion"],["06-18-00-02","Equipo de Referencia"],
-               ["06-18-00-03","Formularios"],["06-18-00-04","Seguimiento"]
-              ].map(([cod,desc])=>h('div',{key:cod,style:{padding:"10px 14px",borderRadius:8,background:"#F8FAFC",border:"1px solid #E2E8F0",display:"flex",gap:10,alignItems:"center"}},
-                h('div',{style:{fontSize:9,fontFamily:"monospace",fontWeight:700,color:"#3B82F6",background:"#DBEAFE",padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap"}},cod),
-                h('div',{style:{fontSize:12,fontWeight:600,color:"#1E293B"}},desc)
-              ))
-            ),
-            h('div',{style:{display:"flex",gap:8}},
-              [[">=60%","Verde - Adecuado","#059669","#D1FAE5"],["40-59%","Naranja - Mejorable","#D97706","#FEF3C7"],["<40%","Rojo - Critico","#DC2626","#FEE2E2"]
-              ].map(([r,l,c,bg])=>h('div',{key:r,style:{padding:"6px 12px",borderRadius:6,background:bg,border:"1px solid "+c+"30",fontSize:11}},
-                h('span',{style:{fontWeight:700,color:c}},r),
-                h('span',{style:{color:"#475569"}}," "+l)
-              ))
-            )
-          ),
-          pacs.length===0&&h('div',{style:{padding:"12px 16px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,fontSize:11,color:"#991B1B"}},
-            "Sin pacientes cargados. Revisa la consola (F12)."
-          )
-        ),
-        tab==="FILTROS"&&h(TabFiltros,{filtros,setFiltros,pacs,loadedG,onLoadG:handleLoadG}),
-        tab==="ESTADÍSTICAS"&&h(TabStats,{pacs:filPacs}),
-        tab==="DETALLE"&&h(TabDetalle,{pacs:filPacs,canCIC,critsData,loadedG,onLoadG:handleLoadG}),
-        tab==="ANÁLISIS"&&h(TabAnalisis,{pacs:filPacs}),
-        tab==="ADMINISTRACIÓN"&&h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"24px"}},
-          h('div',{style:{fontSize:16,fontWeight:800,color:"#0F2444",marginBottom:4}},"⚙️ Administración"),
-          h('div',{style:{fontSize:13,color:"#64748B"}},"Gestión usuarios · Recarga Drive→Supabase · Documentos · Informes automáticos")
-        )
-      )
-    );
-  }
+              })}
+            </div>
+          </div>
+        </div>
 
-  setBar(100,"Listo");
-  ReactDOM.createRoot(document.getElementById("root")).render(h(App,{}));
+        {/* TABS */}
+        <div style={{display:"flex",gap:2}}>
+          {TABS.map(t=>(
+            <button key={t.k} onClick={()=>setTab(t.k)} style={{
+              padding:"10px 18px",border:"none",cursor:"pointer",fontSize:12,
+              fontWeight:tab===t.k?700:500,borderRadius:"8px 8px 0 0",
+              borderBottom:`2px solid ${tab===t.k?(t.admin?"#DC2626":"#3B82F6"):"transparent"}`,
+              background:tab===t.k?"#F0F4F8":"transparent",
+              color:tab===t.k?(t.admin?"#991B1B":"#1E3A5F"):(t.admin?"#FCA5A5":"#94A3B8"),
+              display:"flex",alignItems:"center",gap:5,transition:"all .15s",
+            }}>
+              {t.icon} {t.k}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div style={{padding:"16px 24px 32px"}}>
+        {tab==="VISOR"&&(
+          <div style={{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}}>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F2444",marginBottom:4}}>VISOR PCRON — Paciente Crónico Osakidetza</div>
+            <div style={{fontSize:13,color:"#64748B",marginBottom:16}}>Fuente: {META.fuente} · Snapshot: {META.fechaAct} · {nFmt(pacientes.length)} pacientes activos</div>
+            <div style={{padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,fontSize:11,color:"#92400E",lineHeight:1.6}}>
+              🔒 <strong>Confidencialidad CIC:</strong> ADM/DIR acceso total · CEN solo su centro · PROFESIONAL solo sus cupos. El CIC es dato personal sujeto a RGPD.
+            </div>
+          </div>
+        )}
+        {tab==="FILTROS"&&(
+          <TabFiltros filtros={filtros} setFiltros={setFiltros} savedFiltros={savedFiltros} setSavedFiltros={setSavedFiltros}
+            pacientes={pacientes} loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo}/>
+        )}
+        {tab==="ESTADÍSTICAS"&&<TabEstadisticas pacientes={pacientesFiltrados}/>}
+        {tab==="DETALLE"&&(
+          <TabDetalle pacientes={pacientesFiltrados} canCIC={canCIC} criteriosData={criteriosData}
+            loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo}/>
+        )}
+        {tab==="ANÁLISIS"&&<TabAnalisis pacientes={pacientesFiltrados} savedAnalisis={savedAnalisis} setSavedAnalisis={setSavedAnalisis}/>}
+      </div>
+    </div>
+  );
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// DATOS DEMO — 10 pacientes de ejemplo cuando no hay Supabase
+// ════════════════════════════════════════════════════════════════════════════
+const DEMO_PACIENTES=[
+  {id:"65228366",   cic:"84576",    sexo:"H",edad:73,osi:"01 OSID",centro:"AIZARNAZABAL",cupo:"25940",medico:"Dr. García",   bloque:"01 AGIRRE C",gip_ap:true, gip_hosp:false,gip_osarean:false,pob:"03 DEPENDIENTE DOMICILIO",dep:1,polimed:1,compl:6.7, co:1.5,fr:3.2,top_adec:72,audit_adec:61,audit_pend:["Vacuna Gripe","Control TA"]},
+  {id:"7764061811", cic:"10083061", sexo:"M",edad:84,osi:"01 OSID",centro:"AIZARNAZABAL",cupo:"25940",medico:"Dra. López",  bloque:"01 AGIRRE C",gip_ap:false,gip_hosp:true, gip_osarean:false,pob:"03 DEPENDIENTE DOMICILIO",dep:1,comorb:1,compl:12.1,co:4.0,fr:4.8,top_adec:58,audit_adec:44,audit_pend:["HbA1c","Fondo Ojo","Vacuna Gripe"]},
+  {id:"1536033082", cic:"1994712",  sexo:"H",edad:78,osi:"01 OSID",centro:"LASARTE",     cupo:"20187",medico:"Dr. Ruiz",    bloque:"02 VAQUERO", gip_ap:true, gip_hosp:false,gip_osarean:false,pob:"06 MAYOR COMORBILIDAD",comorb:1,polimed:1,compl:4.5, co:2.0,fr:2.5,top_adec:85,audit_adec:78,audit_pend:["LDL"]},
+  {id:"896351737",  cic:"1163957",  sexo:"M",edad:69,osi:"01 OSID",centro:"LASARTE",     cupo:"20187",medico:"Dra. Pérez",  bloque:"02 VAQUERO", gip_ap:false,gip_hosp:false,gip_osarean:false,pob:"05 HF AP",hfap:1,polimed:1,compl:3.2,co:0.5,fr:5.8,top_adec:91,audit_adec:88,audit_pend:[]},
+  {id:"388752337",  cic:"504737",   sexo:"M",edad:76,osi:"01 OSID",centro:"LASARTE",     cupo:"20187",medico:"Dr. García",  bloque:"02 VAQUERO", gip_ap:false,gip_hosp:true, gip_osarean:false,pob:"04 HF HOSPITALARIO",hfh:1,comorb:1,social:1,compl:8.3,co:2.5,fr:6.1,top_adec:63,audit_adec:55,audit_pend:["Exploración Pie","Microalbuminuria"]},
+  {id:"112233445",  cic:"334455",   sexo:"H",edad:88,osi:"02 OSIT",centro:"TOLOSA",      cupo:"31001",medico:"Dr. Etxeberria",bloque:"03 HIGUERA",gip_ap:true, gip_hosp:true, gip_osarean:false,pob:"01 GERONTOLÓGICO",geron:1,dep:1,comorb:1,polimed:1,may85:1,social:1,compl:18.4,co:5.0,fr:4.2,top_adec:41,audit_adec:33,audit_pend:["Barthel","Test Cognitivo","Vacuna Pneumo","Vacuna Gripe","Revisión Social"]},
+  {id:"556677889",  cic:"667788",   sexo:"M",edad:91,osi:"01 OSID",centro:"HERNANI",     cupo:"20056",medico:"Dra. Arrizabalaga",bloque:"04 COUTO",gip_ap:false,gip_hosp:true,gip_osarean:false,pob:"02 PALIATIVO",pal:1,dep:1,comorb:1,polimed:1,may85:1,compl:22.1,co:4.5,fr:3.8,top_adec:37,audit_adec:29,audit_pend:["Plan de Cuidados","Escala Dolor","Valoración Funcional","Soporte Familiar","Revisión Medicación"]},
+  {id:"998877665",  cic:"887766",   sexo:"H",edad:86,osi:"01 OSID",centro:"ERRENTERIA",  cupo:"20100",medico:"Dr. Mendizabal",bloque:"05 SANCHEZ",gip_ap:true,gip_hosp:false,gip_osarean:false,pob:"08 MAYOR 85 SANO",sano:1,may85:1,compl:2.1,co:0.0,fr:1.2,top_adec:96,audit_adec:92,audit_pend:[]},
+  {id:"443322110",  cic:"322110",   sexo:"M",edad:72,osi:"03 RESTO OSI",centro:"EIBAR",  cupo:"20099",medico:"Dr. Juarez",  bloque:"06 SANZ",    gip_ap:false,gip_hosp:false,gip_osarean:true, pob:"09 DEMOGRÁFICOS",demog:1,polimed:1,compl:1.8,co:0.5,fr:1.5,top_adec:88,audit_adec:81,audit_pend:["Control TA"]},
+  {id:"221100998",  cic:"100998",   sexo:"H",edad:79,osi:"01 OSID",centro:"PASAIA",      cupo:"20014",medico:"Dra. Oleaga",  bloque:"07 ZUBELZU",gip_ap:true, gip_hosp:true, gip_osarean:false,pob:"04 HF HOSPITALARIO",hfh:1,hfap:1,comorb:1,polimed:1,compl:9.6,co:3.0,fr:7.2,top_adec:54,audit_adec:47,audit_pend:["Ecocardiograma","Control INR","Plan de Crisis"]},
+];
+
+
+// ── ARRANQUE ──────────────────────────────────────────────────────────────
+const boot = document.getElementById('boot');
+const fill = document.getElementById('boot-fill');
+fill.style.width = '100%';
+setTimeout(() => {
+  boot.style.opacity = '0';
+  setTimeout(() => boot.style.display = 'none', 500);
+}, 300);
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
 </body>
 </html>
