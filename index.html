@@ -406,93 +406,87 @@ async function cargarTodosPacientes(onProgress) {
 }
 
 // ── MAPEO columnas Supabase → claves internas ──────────────────────────────
-// Ajusta este objeto si los nombres de columna son distintos en tu Supabase
-const COL_MAP = {
-  // IDENTIFICACIÓN
-  id:       ["id_paciente","id","001 id_paciente (id paciente)","001 id_paciente"],
-  cic:      ["cic ip","cic","002 cic ip"],
-  sexo:     ["sexo","003 sexo"],           // espera "H"/"M" o "Hombre"/"Mujer"
-  edad:     ["edad","004 edad"],
-  osi:      ["comarca_osi","osi","005 comarca_osi (osi)","005 comarca_osi"],
-  centro:   ["centro","006 centro (centro)","006 centro"],
-  cupo:     ["codigo_cupo","cupo","007 codigo_cupo (cupo)","007 codigo_cupo"],
-  // EQUIPO
-  medico:   ["04-13-03-3 segui pcron act ccee pend_equipo ref medico","medico_referencia","medico","04-13-03-02 segui pcron act ccee pend_bloque ref pcron"],
-  bloque:   ["04-13-03-02 segui pcron act ccee pend_bloque ref pcron","bloque","bloque_referencia"],
-  // GIP
-  gip_ap:      ["04-12-05-02 segui ap act ap pend_equipo ref ap gip ppp","gip_ap"],
-  gip_hosp:    ["04-13-09-01 segui pcron gip_equipo ref gip h","gip_hosp","gip_hospitalario"],
-  gip_osarean: ["04-15-09-01 segui osarean gip_equipo ref gip osarean","gip_osarean"],
-  // GRUPO DE POBLACIÓN (la clave más importante)
-  pob:      ["05-17-00-02 clas poblacion app_poblacion diana grupos","poblacion_diana_grupos","pob","grupo_poblacion","poblacion"],
-  // PERFILES / CARACTERÍSTICAS
-  geron:    ["05-18-00-03 clas caract app_1 geron","geron","perfil_geron"],
-  pal:      ["05-18-00-04 clas caract app_2 pal","pal","perfil_pal"],
-  dep:      ["05-18-00-05 clas caract app_3 dep","dep","perfil_dep"],
-  hfh:      ["05-18-00-06 clas caract app_4 hfh","hfh","perfil_hfh"],
-  hfap:     ["05-18-00-07 clas caract app_5 hfap","hfap","perfil_hfap"],
-  comorb:   ["05-18-00-08 clas caract app_6 mayor comorb","comorb","perfil_comorb"],
-  sano:     ["05-18-00-09 clas caract app_7 mayor sano","sano","perfil_sano"],
-  may85:    ["05-18-00-12 clas caract app_10 _ 85 s_n","may85","mayor85","perfil_may85"],
-  demog:    ["05-18-00-10 clas caract app_8 demograficos","demog","perfil_demog"],
-  polimed:  ["02-01-17-05 crit ppp presbide_polimedicacion _ 7","polimed","polimedicado"],
-  social:   ["05-18-00-13 clas caract app_11 carga social","social","carga_social"],
-  // ÍNDICES
-  compl:    ["06-00-00-06 indice complejidad app_indice complejidad","indice_complejidad","compl","complejidad"],
-  co:       ["06-00-00-04 indice comorbilidad app_indice comorbilidad","indice_comorbilidad","co","comorbilidad"],
-  fr:       ["06-00-00-05 indice hiperfrecuentacion app_indice hiperfrecuentacion","indice_hiperfrecuentacion","fr","hiperfrecuentacion"],
-  // AUDITORÍA (calidad)
-  top_adec:   ["06-18-00-01 audit calidad app_1 estratificacion","top_adec","audit_estratificacion","top"],
-  audit_adec: ["06-18-00-03 audit calidad app_3 formularios","audit_adec","audit_formularios","audit"],
-  audit_pend: ["audit_pend","pendientes","audit_pendientes"],
-};
+// Estructura: columnas directas + todo dentro de criterios (JSONB)
 
-function resolverCol(rawLC, targets) {
-  for (const t of targets) {
-    if (rawLC[t] !== undefined) return rawLC[t];
+function esSi(v) {
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim().toUpperCase();
+  return s === 'SI' || s === 'SÍ' || s === '1' || s === 'TRUE' || s === 'YES';
+}
+
+function getC(crit, key) {
+  if (!crit) return undefined;
+  // Búsqueda exacta
+  if (crit[key] !== undefined) return crit[key];
+  // Búsqueda por código (primeros 11 chars XX-XX-XX-XX)
+  const codigo = key.substring(0, 11);
+  for (const k of Object.keys(crit)) {
+    if (k.substring(0, 11) === codigo) return crit[k];
   }
   return undefined;
 }
 
 function mapearPaciente(r) {
-  // Crear versión lowercase de todas las claves para búsqueda
-  const rawLC = {};
-  Object.keys(r).forEach(k => { rawLC[k.toLowerCase()] = r[k]; });
+  const crit = r.criterios || {};
+  const audit = crit['AUDITORIA'] || {};
 
-  const p = {};
-  // Copiar TODO (para acceso directo a columnas no mapeadas)
-  Object.assign(p, rawLC);
+  // Normalizar OSI
+  let osi = r.comarca_osi || '';
+  if (osi.toUpperCase().includes('DONOSTIALDEA')) osi = '01 OSID';
+  else if (osi.toUpperCase().includes('TOLOSALDEA')) osi = '02 OSIT';
+  else if (osi && !osi.startsWith('0')) osi = '03 RESTO OSI';
 
-  // Mapear las claves conocidas
-  for (const [key, aliases] of Object.entries(COL_MAP)) {
-    const val = resolverCol(rawLC, aliases);
-    if (val !== undefined) p[key] = val;
-  }
+  // Normalizar sexo
+  let sexo = r.sexo || '';
+  if (sexo === 'Hombre' || sexo === 'HOMBRE') sexo = 'H';
+  if (sexo === 'Mujer'  || sexo === 'MUJER')  sexo = 'M';
 
-  // Normalizar sexo: "Hombre"→"H", "Mujer"→"M"
-  if (p.sexo === "Hombre" || p.sexo === "hombre" || p.sexo === "HOMBRE") p.sexo = "H";
-  if (p.sexo === "Mujer"  || p.sexo === "mujer"  || p.sexo === "MUJER")  p.sexo = "M";
+  const p = {
+    // ── IDENTIFICACIÓN (columnas directas) ──
+    id:     r.id_paciente,
+    cic:    r.cic,
+    sexo,
+    edad:   parseInt(r.edad) || 0,
+    osi,
+    centro: r.centro,
+    cupo:   r.codigo_cupo,
 
-  // Normalizar bool: 1/"Si"/"SI"/"TRUE" → true
-  ["geron","pal","dep","hfh","hfap","comorb","sano","may85","demog","polimed","social","gip_ap","gip_hosp","gip_osarean"].forEach(k=>{
-    if (p[k] !== undefined) {
-      const v = p[k];
-      p[k] = v===1||v==="1"||v===true||String(v).toLowerCase()==="si"||String(v).toLowerCase()==="sí"||String(v).toLowerCase()==="true";
-    }
-  });
+    // ── EQUIPO REFERENCIA (dentro de criterios) ──
+    medico:      getC(crit, '04-13-03-3') || getC(crit, '04-13-03-02') || '',
+    bloque:      getC(crit, '04-13-03-02') || '',
+    gip_ap:      esSi(getC(crit, '04-12-05-02')),
+    gip_hosp:    esSi(getC(crit, '04-13-09-01')),
+    gip_osarean: esSi(getC(crit, '04-15-09-01')),
 
-  // Normalizar números
-  ["edad","compl","co","fr","top_adec","audit_adec"].forEach(k=>{
-    if (p[k] !== undefined) p[k] = parseFloat(p[k]) || 0;
-  });
+    // ── GRUPO DE POBLACIÓN ──
+    pob: getC(crit, '05-17-00-02') || '',
 
-  // Normalizar grupos de población OSI
-  if (p.osi) {
-    const o = String(p.osi).toUpperCase();
-    if (o.includes("DONOSTIALDEA") || o.includes("OSID")) p.osi = "01 OSID";
-    else if (o.includes("TOLOSALDEA") || o.includes("OSIT")) p.osi = "02 OSIT";
-    else if (!o.startsWith("0")) p.osi = "03 RESTO OSI";
-  }
+    // ── CARACTERÍSTICAS / PERFILES ──
+    geron:   esSi(crit['CARACT_GERONTOLOGICO']),
+    pal:     esSi(crit['CARACT_PALIATIVO']),
+    dep:     esSi(crit['CARACT_DEPENDIENTE_DOMICILIO']),
+    hfh:     esSi(crit['CARACT_HF_HOSPITALARIO']),
+    hfap:    esSi(crit['CARACT_HF_AP']),
+    comorb:  esSi(crit['CARACT_MAYOR_COMORBILIDAD']),
+    sano:    esSi(crit['CARACT_MAYOR_SANO']),
+    demog:   esSi(crit['CARACT_DEMOGRAFICOS']),
+    polimed: esSi(crit['CARACT_POLIMEDICADO']),
+    may85:   esSi(crit['CARACT_>85']),
+    social:  crit['CARACT_CARGA_SOCIAL'] || null,
+
+    // ── ÍNDICES ──
+    compl: parseFloat(getC(crit, '05-19-00-15')) || 0,
+    co:    parseFloat(getC(crit, '05-19-00-13')) || 0,
+    fr:    parseFloat(getC(crit, '05-19-00-14')) || 0,
+
+    // ── AUDITORÍA ──
+    top_adec:   parseFloat(audit['top_adec']   ?? audit['TOP']   ?? audit['1_estratificacion'] ?? 0) || 0,
+    audit_adec: parseFloat(audit['audit_adec'] ?? audit['AUDIT'] ?? audit['3_formularios']     ?? 0) || 0,
+    audit_pend: Array.isArray(audit['pendientes']) ? audit['pendientes'] : [],
+
+    // ── REFERENCIA a criterios raw por si acaso ──
+    _criterios: crit,
+  };
 
   return p;
 }
@@ -2322,8 +2316,6 @@ function App() {
   const [loadedGrupos,setLoadedGrupos]=useState([]);
   const [criteriosData,setCriteriosData]=useState({});
 
-  const [showDebug,setShowDebug]=useState(false);
-
   // ── CARGA INICIAL ─────────────────────────────────────────────────────────
   useEffect(()=>{
     const cargar=async()=>{
@@ -2483,72 +2475,31 @@ function App() {
         {tab==="VISOR"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
-            {/* PANEL DEBUG COLUMNAS — se muestra si hay problema de mapeo */}
-            {(pacientes.length>0 && !pacientes[0].sexo && !pacientes[0].pob) && (
-              <div style={{background:"#FEF3C7",border:"2px solid #F59E0B",borderRadius:10,padding:"14px 18px"}}>
-                <div style={{fontSize:13,fontWeight:800,color:"#92400E",marginBottom:8}}>⚠️ Problema de mapeo de columnas</div>
-                <div style={{fontSize:11,color:"#92400E",marginBottom:8}}>La app no reconoce las columnas de Supabase. Abre la consola del navegador (F12) para ver <strong>COLUMNAS SUPABASE</strong> y compártalas.</div>
-                <button onClick={()=>setShowDebug(v=>!v)} style={{padding:"5px 12px",background:"#D97706",border:"none",borderRadius:5,color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  {showDebug?"▲ Ocultar":"▼ Ver columnas recibidas"}
-                </button>
-                {showDebug && window._SUPABASE_COLS && (
-                  <div style={{marginTop:10,background:"#1E293B",borderRadius:8,padding:"12px",maxHeight:300,overflowY:"auto"}}>
-                    <div style={{fontSize:9,color:"#94A3B8",fontWeight:700,marginBottom:6}}>COLUMNAS RECIBIDAS DE SUPABASE ({window._SUPABASE_COLS.length})</div>
-                    {window._SUPABASE_COLS.map((c,i)=>{
-                      const mapeada = Object.entries(COL_MAP).find(([k,aliases])=>aliases.includes(c.toLowerCase()));
-                      return (
-                        <div key={i} style={{fontSize:10,color:mapeada?"#6EE7B7":"#FCA5A5",fontFamily:"monospace",marginBottom:2}}>
-                          {mapeada?"✓":"✗"} <strong style={{color:mapeada?"#6EE7B7":"#F87171"}}>{c}</strong>
-                          {mapeada&&<span style={{color:"#94A3B8"}}> → {mapeada[0]}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {showDebug && !window._SUPABASE_COLS && (
-                  <div style={{marginTop:8,fontSize:11,color:"#B45309"}}>No se han recibido datos de Supabase aún.</div>
-                )}
-              </div>
-            )}
-
             {/* Diagnóstico rápido de mapeo */}
             {pacientes.length>0&&(
-              <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 16px",display:"flex",gap:16,flexWrap:"wrap"}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#1E293B"}}>🔬 Diagnóstico de mapeo</div>
+              <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 16px",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#1E293B"}}>🔬 Mapeo de columnas</div>
                 {[
-                  ["ID",      !!pacientes[0]?.id],
-                  ["Sexo",    !!pacientes[0]?.sexo],
-                  ["Edad",    !!pacientes[0]?.edad],
-                  ["OSI",     !!pacientes[0]?.osi],
-                  ["Centro",  !!pacientes[0]?.centro],
-                  ["Grupo Pob.",!!pacientes[0]?.pob],
-                  ["Complejidad",!!pacientes[0]?.compl],
-                  ["TOP",     !!pacientes[0]?.top_adec],
+                  ["ID",         !!pacientes[0]?.id],
+                  ["Sexo",       !!pacientes[0]?.sexo],
+                  ["Edad",       !!pacientes[0]?.edad],
+                  ["OSI",        !!pacientes[0]?.osi],
+                  ["Centro",     !!pacientes[0]?.centro],
+                  ["Grupo Pob.", !!pacientes[0]?.pob],
+                  ["Complejidad",pacientes[0]?.compl > 0],
+                  ["TOP",        pacientes[0]?.top_adec > 0],
+                  ["GIP AP",     pacientes[0]?.gip_ap !== undefined],
                 ].map(([l,ok])=>(
                   <div key={l} style={{display:"flex",alignItems:"center",gap:4,fontSize:11}}>
                     <span style={{color:ok?"#059669":"#DC2626",fontWeight:700}}>{ok?"✓":"✗"}</span>
                     <span style={{color:ok?"#065F46":"#991B1B"}}>{l}</span>
                   </div>
                 ))}
-                <button onClick={()=>setShowDebug(v=>!v)} style={{marginLeft:"auto",fontSize:10,padding:"3px 10px",border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#64748B"}}>
-                  {showDebug?"▲ Ocultar debug":"🔎 Ver columnas"}
-                </button>
-              </div>
-            )}
-            {showDebug && pacientes.length>0 && window._SUPABASE_COLS && (
-              <div style={{background:"#1E293B",borderRadius:10,padding:"14px 18px",maxHeight:400,overflowY:"auto"}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:10,letterSpacing:.5}}>COLUMNAS SUPABASE ({window._SUPABASE_COLS.length}) — Verde=mapeada · Rojo=sin mapear</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(380px,1fr))",gap:3}}>
-                  {window._SUPABASE_COLS.map((c,i)=>{
-                    const mapeada = Object.entries(COL_MAP).find(([k,aliases])=>aliases.includes(c.toLowerCase()));
-                    return (
-                      <div key={i} style={{fontSize:10,color:mapeada?"#6EE7B7":"#94A3B8",fontFamily:"monospace",padding:"2px 0"}}>
-                        {mapeada?"●":"·"} <span style={{color:mapeada?"#A7F3D0":"#CBD5E1"}}>{c}</span>
-                        {mapeada&&<span style={{color:"#6EE7B7",fontWeight:700}}> ↦ {mapeada[0]}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
+                {!pacientes[0]?.pob && (
+                  <div style={{marginLeft:"auto",fontSize:10,color:"#DC2626",fontWeight:600}}>
+                    ⚠️ Ejecuta el Colab para calcular CARACT_ y grupos de población
+                  </div>
+                )}
               </div>
             )}
             {/* CABECERA */}
