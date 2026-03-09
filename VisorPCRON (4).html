@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net"/>
+<link rel="preconnect" href="https://qbtdbnilmrvjmwoefwmw.supabase.co"/>
+<title>VISOR PCRON</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:system-ui,-apple-system,sans-serif;background:#F0F4F8;min-height:100vh;}
+input,button,select{font-family:inherit;}
+#boot{position:fixed;inset:0;background:linear-gradient(135deg,#060E1E,#0F2444);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;z-index:9999;}
+#boot-bar{width:280px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;margin-top:16px;overflow:hidden;}
+#boot-fill{height:100%;width:5%;background:linear-gradient(90deg,#3B82F6,#06B6D4);border-radius:3px;transition:width .3s;}
+.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:#3B82F6;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div class="spinner"></div>
+  <div style="font-size:22px;font-weight:900;letter-spacing:1px">VISOR PCRON</div>
+  <div style="font-size:12px;color:#475569;margin-top:4px">Osakidetza · cargando…</div>
+  <div id="boot-bar"><div id="boot-fill"></div></div>
+  <div id="boot-msg" style="font-size:11px;color:#475569;margin-top:8px">Iniciando…</div>
+</div>
+
+<div id="root"></div>
+
+<script>
+const fill = document.getElementById('boot-fill');
+const msg  = document.getElementById('boot-msg');
+function setBar(p,t){fill.style.width=p+'%';msg.textContent=t;}
+
+// Carga scripts dinámicamente en orden
+function loadScript(src,cb){
+  const s=document.createElement('script');
+  s.src=src; s.onload=cb;
+  s.onerror=()=>{document.getElementById('boot').innerHTML='<div style="color:#FCA5A5;padding:20px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700">Sin conexión a internet</div><div style="font-size:12px;margin-top:8px;color:#94A3B8">Este archivo requiere internet para cargar React y Supabase.<br>Conéctate y recarga la página.</div></div>';};
+  document.head.appendChild(s);
+}
+
+// Carga en paralelo — mucho más rápido
+setBar(10,'Cargando librerías…');
+const CDN = [
+  'https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',
+  'https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+];
+let loaded = 0;
+CDN.forEach(src => {
+  const s = document.createElement('script');
+  s.src = src;
+  s.onload = () => {
+    loaded++;
+    setBar(10 + loaded * 25, loaded===1?'React listo…':loaded===2?'ReactDOM listo…':'Supabase listo…');
+    if (loaded === CDN.length) { setBar(90,'Iniciando app…'); setTimeout(initApp, 30); }
+  };
+  s.onerror = () => {
+    document.getElementById('boot').innerHTML = '<div style="color:#FCA5A5;padding:30px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700">Sin conexión a internet</div><div style="font-size:12px;margin-top:8px;color:#94A3B8">Conectate y recarga la página.</div></div>';
+  };
+  document.head.appendChild(s);
+});
+</script>
+
+<script id="appscript">
+function initApp(){
+  const {useState,useEffect,useMemo,useCallback,createElement:h,Fragment} = React;
+
+  // ── CONFIG ──────────────────────────────────────────────────
+  const SUPA_URL  = "https://qbtdbnilmrvjmwoefwmw.supabase.co";
+  const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidGRibmlsbXJ2am13b2Vmd213Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTIwNzcsImV4cCI6MjA4MzUyODA3N30.u_h9Qzk40ml_hWNIW00bGKSrCG4Y9SeUyAGllUGITic";
+  const sb = window.supabase.createClient(SUPA_URL, SUPA_ANON, {auth:{persistSession:false}});
+
+  const META = {version:"v6.0",totalBD:97525,fuente:"Osabide Global · Osanaia · OAS",fecha:"03/03/2026 08:14"};
+  const BATCH = 1000;
+  const BASIC = "id,cic,sexo,edad,osi,centro,cupo,medico,bloque,gip_ap,gip_hosp,gip_osarean,pob,geron,pal,dep,hfh,hfap,comorb,sano,may85,demog,polimed,social,compl,co,fr,top_adec,audit_adec,audit_pend";
+
+  const POB = {
+    "01 GERONTOLÓGICO":        {bg:"#7C3AED",lt:"#EDE9FE"},
+    "02 PALIATIVO":            {bg:"#DC2626",lt:"#FEE2E2"},
+    "03 DEPENDIENTE DOMICILIO":{bg:"#D97706",lt:"#FEF3C7"},
+    "04 HF HOSPITALARIO":      {bg:"#0891B2",lt:"#CFFAFE"},
+    "05 HF AP":                {bg:"#0284C7",lt:"#E0F2FE"},
+    "06 MAYOR COMORBILIDAD":   {bg:"#059669",lt:"#D1FAE5"},
+    "07 MAYOR SANO":           {bg:"#65A30D",lt:"#ECFCCB"},
+    "08 MAYOR 85 SANO":        {bg:"#78716C",lt:"#F5F5F4"},
+    "09 DEMOGRÁFICOS":         {bg:"#6B7280",lt:"#F3F4F6"},
+  };
+  const CARACTS = [
+    {k:"geron",l:"Gerontológico",c:"#7C3AED"},{k:"pal",l:"Paliativo",c:"#DC2626"},
+    {k:"dep",l:"Dependiente Dom.",c:"#D97706"},{k:"hfh",l:"HF Hospitalario",c:"#0891B2"},
+    {k:"hfap",l:"HF AP",c:"#0284C7"},{k:"comorb",l:"Comorbilidad",c:"#059669"},
+    {k:"sano",l:"Mayor Sano",c:"#65A30D"},{k:"may85",l:"Mayor 85",c:"#EA580C"},
+    {k:"demog",l:"Demográficos",c:"#6B7280"},{k:"polimed",l:"Polimedicado",c:"#9333EA"},
+    {k:"social",l:"Carga Social",c:"#BE185D"},
+  ];
+  const GRUPOS_CRIT = [
+    {id:"PPP",label:"PPP",keys:["crit_ppp","crit_episodio_pal","crit_fragil"]},
+    {id:"DEPEND",label:"Dependencia",keys:["crit_barthel_base","crit_barthel_actual","crit_demencia","crit_caidas","crit_episodio_dom"]},
+    {id:"HFH",label:"HF Hospitalario",keys:["crit_reingresos","crit_urg_n","crit_ic","crit_epoc","crit_estancia","crit_hd"]},
+    {id:"HFAP",label:"HF AP",keys:["crit_frec_ap_med","crit_frec_ap_enf"]},
+    {id:"COMORB",label:"Comorbilidad",keys:["crit_i_renal","crit_hepatopatia","crit_anemia","crit_pluripatologico","crit_ulceras"]},
+    {id:"PAL",label:"Paliativo",keys:["crit_necpal","crit_frag_vig","crit_plan_cuidados"]},
+    {id:"FARM",label:"Polimedicación",keys:["crit_farmacos"]},
+  ];
+  const CRIT_PERFIL = {
+    geron:[{k:"crit_barthel_base",l:"Barthel basal < 80"},{k:"crit_barthel_actual",l:"Barthel actual < 60"},{k:"crit_demencia",l:"Demencia"},{k:"crit_caidas",l:"Caídas"},{k:"crit_fragil",l:"Frágil"}],
+    pal:  [{k:"crit_episodio_pal",l:"Episodio Paliativo"},{k:"crit_necpal",l:"NECPAL+"},{k:"crit_frag_vig",l:"FRAG VIG>0,48"},{k:"crit_plan_cuidados",l:"Plan Cuidados"}],
+    dep:  [{k:"crit_barthel_base",l:"Barthel basal<80"},{k:"crit_barthel_actual",l:"Barthel actual<60"},{k:"crit_episodio_dom",l:"Episodio Dom."},{k:"crit_demencia",l:"Demencia"}],
+    hfh:  [{k:"crit_reingresos",l:"Reingresos≥2"},{k:"crit_urg_n",l:"Urgencias≥3"},{k:"crit_ic",l:"IC"},{k:"crit_epoc",l:"EPOC"},{k:"crit_estancia",l:"Estancia>10d"},{k:"crit_hd",l:"HaD"}],
+    hfap: [{k:"crit_frec_ap_med",l:"Frec AP Med>25"},{k:"crit_frec_ap_enf",l:"Frec AP Enf>25"}],
+    comorb:[{k:"crit_ic",l:"IC"},{k:"crit_epoc",l:"EPOC"},{k:"crit_i_renal",l:"I.Renal"},{k:"crit_hepatopatia",l:"Hepatopatía"},{k:"crit_anemia",l:"Anemia"},{k:"crit_pluripatologico",l:"Pluripatológico"},{k:"crit_ulceras",l:"Úlceras"}],
+    polimed:[{k:"crit_farmacos",l:"Fármacos≥7"}],
+    demog:[{k:"crit_ppp",l:"PPP"},{k:"crit_fragil",l:"Alerta Frágil"},{k:"crit_pluripatologico",l:"Alerta Pluripat."},{k:"crit_episodio_pal",l:"Alerta Paliativo"}],
+  };
+  const OSI_ST = {tm:68,tp:82,am:64,ap:79};
+  const CENTROS = ["AIZARNAZABAL","LASARTE","HERNANI","ERRENTERIA","PASAIA","TOLOSA","EIBAR","ANDOAIN","AZPEITIA","ZARAUTZ"];
+  const BLOQUES = ["01 AGIRRE C","02 VAQUERO","03 HIGUERA","04 COUTO","05 SANCHEZ","06 SANZ","07 ZUBELZU"];
+  const ROLES = {
+    ADM:{l:"Administrador",cic:true,adm:true},DIR:{l:"Dirección",cic:true,adm:false},
+    MAN:{l:"Mando Intermedio",cic:true,adm:false},CEN:{l:"Centro/Jefatura",cic:false,adm:false},
+    PROFESIONAL:{l:"Profesional",cic:false,adm:false},
+  };
+
+  // ── HELPERS ─────────────────────────────────────────────────
+  const pct  = (n,t)=>t>0?((n/t)*100).toFixed(1):"0.0";
+  const nFmt = n=>Number(n||0).toLocaleString("es-ES");
+  const s    = (obj)=>({style:obj});  // shorthand
+
+  function applyF(pacs,filtros){
+    if(!filtros.length) return pacs;
+    return pacs.filter(p=>filtros.every(f=>{
+      const v=p[f.campo]; let m=false;
+      if(f.tipo==="bool")   m=f.valor?Boolean(v):!v;
+      if(f.tipo==="select") m=v===f.valor;
+      if(f.tipo==="range")  m=v>=f.min&&v<=f.max;
+      return f.logica==="NO"?!m:m;
+    }));
+  }
+
+  // ── SUPABASE ────────────────────────────────────────────────
+  async function cargarPacs(onP){
+    let all=[],off=0,more=true;
+    while(more){
+      const {data,error}=await sb.from("pacientes").select(BASIC).range(off,off+BATCH-1);
+      if(error||!data){console.error("Supabase error:",error);break;}
+      all=[...all,...data]; off+=BATCH;
+      onP(Math.min(97,Math.round(off/META.totalBD*100)));
+      more=data.length===BATCH;
+    }
+    return all;
+  }
+
+  async function cargarCrits(grupo,ids){
+    const cols="id,"+grupo.keys.join(",");
+    const {data,error}=await sb.from("pacientes").select(cols).in("id",ids.slice(0,1000));
+    if(error||!data) return {};
+    const map={};
+    data.forEach(r=>{map[r.id]=r;});
+    return map;
+  }
+
+  // ── COMPONENTES SIMPLES ──────────────────────────────────────
+  function PobBadge({pob}){
+    const c=POB[pob]||{bg:"#6B7280",lt:"#F3F4F6"};
+    return h('span',{style:{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:c.lt,color:c.bg,border:`1px solid ${c.bg}40`,whiteSpace:"nowrap"}},pob);
+  }
+
+  function Chips({pat}){
+    const ac=CARACTS.filter(c=>pat[c.k]);
+    if(!ac.length) return h('span',{style:{color:"#CBD5E1",fontSize:11}},"—");
+    return h('div',{style:{display:"flex",gap:3,flexWrap:"wrap"}},
+      ac.map(c=>h('span',{key:c.k,style:{padding:"1px 5px",borderRadius:3,fontSize:9,fontWeight:700,background:c.c+"20",color:c.c}},c.l.split(" ")[0].toUpperCase()))
+    );
+  }
+
+  function Bar({label,n,total,color}){
+    const p=+pct(n,total);
+    return h('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:5}},
+      h('div',{style:{width:140,fontSize:11,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:0}},label),
+      h('div',{style:{flex:1,height:11,background:"#F1F5F9",borderRadius:5,overflow:"hidden"}},
+        h('div',{style:{height:"100%",width:p+"%",background:color,borderRadius:5,transition:"width .4s"}})
+      ),
+      h('div',{style:{width:40,fontWeight:700,color,textAlign:"right",fontSize:12}},nFmt(n)),
+      h('div',{style:{width:42,color:"#94A3B8",fontSize:10,textAlign:"right"}},p+"%")
+    );
+  }
+
+  function IdxBar({label,value,om,op,color}){
+    const nc=value>=op?"#059669":value>=om?"#D97706":"#DC2626";
+    const niv=value>=op?"Bueno":value>=om?"Medio":"Bajo";
+    return h('div',{style:{marginBottom:12}},
+      h('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},
+        h('span',{style:{fontSize:12,fontWeight:700,color:"#1E293B"}},label),
+        h('div',{style:{display:"flex",alignItems:"center",gap:6}},
+          h('span',{style:{fontSize:20,fontWeight:800,color:nc}},value+"%"),
+          h('span',{style:{background:nc+"20",color:nc,padding:"2px 7px",borderRadius:6,fontSize:10,fontWeight:700}},niv)
+        )
+      ),
+      h('div',{style:{position:"relative",height:12,background:"#F1F5F9",borderRadius:6}},
+        h('div',{style:{height:"100%",width:Math.min(value,100)+"%",background:color,borderRadius:6}}),
+        h('div',{style:{position:"absolute",top:-3,left:Math.min(om,100)+"%",width:2,height:18,background:"#64748B",borderRadius:1}}),
+        h('div',{style:{position:"absolute",top:-3,left:Math.min(op,100)+"%",width:2,height:18,background:"#1E40AF",borderRadius:1}})
+      ),
+      h('div',{style:{display:"flex",gap:10,marginTop:3,fontSize:9,color:"#94A3B8"}},
+        h('span',{},"Media OSI: "+om+"%"), h('span',{},"P75 OSI: "+op+"%")
+      )
+    );
+  }
+
+  // ── MODAL ────────────────────────────────────────────────────
+  function Modal({pat,canCIC,critsData,loadedG,onLoadG,onClose}){
+    const [copied,setCopied]=useState(false);
+    const [lgG,setLgG]=useState(null);
+    if(!pat) return null;
+    const ac=CARACTS.filter(c=>pat[c.k]);
+
+    const copiar=()=>{
+      const gip=[pat.gip_ap?"GIP AP":"",pat.gip_hosp?"GIP Hosp.":"",pat.gip_osarean?"GIP OSAREAN":""].filter(Boolean).join(", ")||"Sin programa";
+      const txt=[
+        "═══ PACIENTE CRÓNICO PCRON ═══",
+        `ID: ${pat.id}  ·  CIC: ${canCIC?pat.cic:"RESTRINGIDO"}`,
+        `${pat.sexo==="H"?"Hombre":"Mujer"}, ${pat.edad} años`,
+        `OSI: ${pat.osi}  ·  Centro: ${pat.centro}  ·  Cupo: ${pat.cupo}`,
+        `Médico: ${pat.medico||"—"}  ·  Bloque: ${pat.bloque||"—"}`,
+        `GIP: ${gip}`,"",
+        `GRUPO: ${pat.pob}`,"",
+        `PERFILES: ${ac.length?ac.map(c=>c.l).join(", "):"Ninguno"}`,"",
+        `Complejidad: ${pat.compl}  Comorbilidad: ${pat.co}  Hiperfrecuent.: ${pat.fr}`,
+        `TOP: ${pat.top_adec}%  Auditoría: ${pat.audit_adec}%`,
+        `Pendientes: ${(pat.audit_pend||[]).join(", ")||"Ninguno"}`,"",
+        `Generado: ${new Date().toLocaleString("es-ES")} · VISOR PCRON ${META.version}`,
+      ].join("\n");
+      navigator.clipboard.writeText(txt).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
+    };
+
+    const loadG=async(gid)=>{setLgG(gid);await onLoadG(gid,[pat.id]);setLgG(null);};
+
+    return h('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:999,padding:20,overflowY:"auto"}},
+      h('div',{onClick:e=>e.stopPropagation(),style:{background:"white",borderRadius:14,width:"100%",maxWidth:680,marginTop:20,marginBottom:20,boxShadow:"0 24px 72px rgba(0,0,0,0.5)"}},
+        // HEADER
+        h('div',{style:{background:"linear-gradient(135deg,#0F172A,#1E3A5F)",borderRadius:"14px 14px 0 0",padding:"18px 22px"}},
+          h('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
+            h('div',{},
+              h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}},"PACIENTE · VISOR PCRON"),
+              h('div',{style:{color:"white",fontSize:22,fontWeight:900,fontFamily:"monospace"}},pat.id),
+              h('div',{style:{color:canCIC?"#94A3B8":"#FCA5A5",fontSize:11,marginBottom:8}},
+                "CIC: ", canCIC?pat.cic:h('span',{style:{color:"#FCA5A5"}},"🔒 RESTRINGIDO")
+              ),
+              h(PobBadge,{pob:pat.pob})
+            ),
+            h('div',{style:{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}},
+              h('button',{onClick:onClose,style:{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:7,padding:"5px 12px",color:"white",cursor:"pointer",fontSize:16}},"✕"),
+              h('button',{onClick:copiar,style:{background:copied?"#059669":"rgba(255,255,255,0.1)",border:`1px solid ${copied?"#059669":"rgba(255,255,255,0.25)"}`,borderRadius:7,padding:"6px 12px",color:"white",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}},
+                copied?"✓ Copiado":"📋 Pegar a Historia"
+              )
+            )
+          )
+        ),
+        // BODY
+        h('div',{style:{padding:"16px 22px",maxHeight:"76vh",overflowY:"auto"}},
+          // Datos básicos
+          h('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:14}},
+            ...[["Sexo",pat.sexo==="H"?"Hombre":"Mujer"],["Edad",pat.edad+" años"],["OSI",pat.osi],
+               ["Centro",pat.centro],["Cupo",pat.cupo],["Médico",pat.medico||"—"],
+               ["Bloque",pat.bloque||"—"],["GIP AP",pat.gip_ap?"✓":"✗"],["GIP Hosp.",pat.gip_hosp?"✓":"✗"]
+            ].map(([k,v])=>h('div',{key:k,style:{background:"#F8FAFC",borderRadius:7,padding:"7px 10px"}},
+              h('div',{style:{fontSize:8,color:"#94A3B8",fontWeight:700,textTransform:"uppercase",letterSpacing:.5}},k),
+              h('div',{style:{fontSize:12,fontWeight:600,color:"#1E293B",marginTop:2}},v)
+            ))
+          ),
+          // Características
+          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
+            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",gap:6,alignItems:"center"}},
+              h('div',{style:{width:7,height:7,borderRadius:"50%",background:"#8B5CF6"}}),"CARACTERÍSTICAS ACTIVAS",
+              h('span',{style:{marginLeft:"auto",fontSize:11,color:"#64748B",fontWeight:400}},ac.length+"/"+CARACTS.length)
+            ),
+            h('div',{style:{padding:"10px 12px",display:"flex",flexWrap:"wrap",gap:6}},
+              ac.length===0
+                ? h('span',{style:{color:"#94A3B8",fontSize:12,fontStyle:"italic"}},"Sin características activas")
+                : ac.map(c=>h('div',{key:c.k,style:{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:c.c+"15",border:`1px solid ${c.c}40`}},
+                    h('div',{style:{width:6,height:6,borderRadius:"50%",background:c.c}}),
+                    h('span',{style:{color:c.c,fontWeight:700,fontSize:11}},c.l)
+                  ))
+            )
+          ),
+          // Criterios
+          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
+            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12,color:"#1E293B",display:"flex",gap:6,alignItems:"center"}},
+              h('div',{style:{width:7,height:7,borderRadius:"50%",background:"#F59E0B"}}),"CRITERIOS POR PERFIL"
+            ),
+            h('div',{style:{padding:"10px 12px"}},
+              ac.length===0
+                ? h('span',{style:{color:"#94A3B8",fontSize:12,fontStyle:"italic"}},"Sin perfiles")
+                : ac.map(car=>{
+                    const crits=CRIT_PERFIL[car.k]||[];
+                    if(!crits.length) return null;
+                    const gid=GRUPOS_CRIT.find(g=>g.keys.some(k=>crits.some(c=>c.k===k)))?.id;
+                    const loaded=gid&&loadedG.includes(gid);
+                    return h('div',{key:car.k,style:{marginBottom:10}},
+                      h('div',{style:{fontSize:11,fontWeight:700,color:car.c,marginBottom:5,display:"flex",alignItems:"center",gap:6}},
+                        h('div',{style:{width:5,height:5,borderRadius:"50%",background:car.c}}), car.l,
+                        !loaded&&gid&&h('button',{onClick:()=>loadG(gid),disabled:lgG===gid,style:{marginLeft:"auto",padding:"2px 8px",fontSize:9,background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:4,cursor:"pointer",color:"#92400E",fontWeight:700}},
+                          lgG===gid?"Cargando…":"📦 Cargar")
+                      ),
+                      crits.map(cr=>{
+                        if(!loaded) return h('div',{key:cr.k,style:{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:5,background:"#F8FAFC",border:"1px solid #E2E8F0",marginBottom:3}},
+                          h('span',{style:{color:"#94A3B8",fontSize:10}},"○"),
+                          h('span',{style:{fontSize:11,color:"#94A3B8",fontStyle:"italic"}},cr.l),
+                          h('span',{style:{marginLeft:"auto",fontSize:9,color:"#D97706",fontWeight:700}},"No cargado")
+                        );
+                        const val=critsData?.[cr.k]?.[pat.id];
+                        const ok=val&&val[cr.k];
+                        return h('div',{key:cr.k,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:5,border:"1px solid",marginBottom:3,borderColor:ok?"#6EE7B7":"#FCA5A5",background:ok?"#D1FAE5":"#FEF2F2"}},
+                          h('span',{style:{color:ok?"#059669":"#DC2626",fontWeight:800,fontSize:12}},ok?"✓":"○"),
+                          h('span',{style:{fontSize:11,color:ok?"#065F46":"#991B1B",fontWeight:ok?600:400}},cr.l),
+                          ok&&h('span',{style:{marginLeft:"auto",fontSize:9,color:"#059669",fontWeight:700}},"ACTIVO")
+                        );
+                      })
+                    );
+                  })
+            )
+          ),
+          // Índices
+          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
+            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12}},"📊 ÍNDICES"),
+            h('div',{style:{padding:"12px 14px",display:"flex",gap:8}},
+              [["COMORBILIDAD",pat.co,7],["HIPERFRECUENT.",pat.fr,13],["COMPLEJIDAD",pat.compl,30]].map(([l,v,m])=>{
+                const p=Math.min(v/m*100,100), cl=v>m*.6?"#DC2626":v>m*.35?"#D97706":"#059669";
+                const nv=v>m*.6?"Alto":v>m*.35?"Moderado":"Bajo";
+                return h('div',{key:l,style:{flex:1,background:cl+"15",border:`1px solid ${cl}40`,borderRadius:9,padding:"10px 12px"}},
+                  h('div',{style:{fontSize:9,fontWeight:800,color:cl,letterSpacing:.8,marginBottom:3}},l),
+                  h('div',{style:{display:"flex",alignItems:"baseline",gap:4,marginBottom:6}},
+                    h('span',{style:{fontSize:20,fontWeight:800,color:cl}},v),
+                    h('span',{style:{background:cl+"25",color:cl,padding:"1px 6px",borderRadius:6,fontSize:9,fontWeight:700}},nv)
+                  ),
+                  h('div',{style:{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}},
+                    h('div',{style:{height:"100%",width:p+"%",background:cl,borderRadius:3}})
+                  )
+                );
+              })
+            )
+          ),
+          // TOP + Auditoría
+          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden",marginBottom:12}},
+            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12}},"⭐ TOP — Adecuación"),
+            h('div',{style:{padding:"12px 14px"}},h(IdxBar,{label:"% Adecuación TOP",value:pat.top_adec,om:OSI_ST.tm,op:OSI_ST.tp,color:"#6366F1"}))
+          ),
+          h('div',{style:{border:"1px solid #E2E8F0",borderRadius:10,overflow:"hidden"}},
+            h('div',{style:{padding:"8px 14px",background:"#F8FAFC",borderBottom:"1px solid #E2E8F0",fontWeight:700,fontSize:12}},"🔍 AUDITORÍA"),
+            h('div',{style:{padding:"12px 14px"}},
+              h(IdxBar,{label:"% Adecuación Auditoría",value:pat.audit_adec,om:OSI_ST.am,op:OSI_ST.ap,color:"#0891B2"}),
+              (pat.audit_pend||[]).length>0
+                ? h('div',{style:{marginTop:8}},
+                    h('div',{style:{fontSize:10,fontWeight:700,color:"#92400E",marginBottom:5}},"⚠️ PENDIENTES ("+pat.audit_pend.length+")"),
+                    pat.audit_pend.map(e=>h('div',{key:e,style:{padding:"5px 8px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:5,marginBottom:3,fontSize:11,color:"#92400E"}},"● "+e))
+                  )
+                : h('div',{style:{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:7,marginTop:8}},
+                    "✅ ",h('span',{style:{fontSize:12,color:"#065F46",fontWeight:600}},"Auditoría completa"))
+            )
+          )
+        )
+      )
+    );
+  }
+
+  // ── TAB ESTADÍSTICAS ─────────────────────────────────────────
+  function TabStats({pacs}){
+    const N=pacs.length;
+    if(!N) return h('div',{style:{textAlign:"center",padding:40,color:"#94A3B8",fontSize:14}},"Sin pacientes con estos filtros");
+    const H=pacs.filter(p=>p.sexo==="H").length;
+    const tm=Math.round(pacs.reduce((s,p)=>s+(p.top_adec||0),0)/N);
+    const am=Math.round(pacs.reduce((s,p)=>s+(p.audit_adec||0),0)/N);
+    const pend=pacs.filter(p=>(p.audit_pend||[]).length>0).length;
+    const uniq=k=>[...new Set(pacs.map(p=>p[k]))].filter(Boolean).sort();
+    const Box=({children,style:st={}})=>h('div',{style:{background:"white",borderRadius:10,border:"1px solid #E2E8F0",padding:"14px 16px",...st}},children);
+
+    return h('div',{style:{display:"flex",flexDirection:"column",gap:14}},
+      h(Box,{},
+        h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:10,paddingBottom:8,borderBottom:"2px solid #E2E8F0"}},"Básicos — N = "+nFmt(N)+" pacientes"),
+        h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}},
+          h('div',{},
+            h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Sexo"),
+            h('div',{style:{display:"flex",gap:8,marginBottom:8}},
+              [{l:"Hombres",n:H,c:"#3B82F6"},{l:"Mujeres",n:N-H,c:"#EC4899"}].map(s=>
+                h('div',{key:s.l,style:{flex:1,padding:10,background:s.c+"10",border:`1px solid ${s.c}30`,borderRadius:8,textAlign:"center"}},
+                  h('div',{style:{fontSize:22,fontWeight:800,color:s.c}},nFmt(s.n)),
+                  h('div',{style:{fontSize:10,color:s.c,fontWeight:700}},pct(s.n,N)+"%"),
+                  h('div',{style:{fontSize:10,color:"#94A3B8"}},s.l)
+                )
+              )
+            ),
+            h('div',{style:{height:8,borderRadius:4,overflow:"hidden",display:"flex"}},
+              h('div',{style:{flex:H,background:"#3B82F6"}}), h('div',{style:{flex:N-H,background:"#EC4899"}})
+            )
+          ),
+          h('div',{},
+            h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Edad"),
+            [["<65",pacs.filter(p=>p.edad<65).length],["65–74",pacs.filter(p=>p.edad>=65&&p.edad<=74).length],
+             ["75–84",pacs.filter(p=>p.edad>=75&&p.edad<=84).length],["85–94",pacs.filter(p=>p.edad>=85&&p.edad<=94).length],
+             ["≥95",pacs.filter(p=>p.edad>=95).length]
+            ].map(([l,n])=>h(Bar,{key:l,label:l,n,total:N,color:"#6366F1"}))
+          )
+        )
+      ),
+      h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
+        h(Box,{},h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"OSI"),uniq("osi").map(v=>h(Bar,{key:v,label:v,n:pacs.filter(p=>p.osi===v).length,total:N,color:"#0891B2"}))),
+        h(Box,{},h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Centro"),uniq("centro").map(v=>h(Bar,{key:v,label:v,n:pacs.filter(p=>p.centro===v).length,total:N,color:"#0284C7"}))),
+        h(Box,{},h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Médico"),uniq("medico").slice(0,8).map(v=>h(Bar,{key:v,label:v,n:pacs.filter(p=>p.medico===v).length,total:N,color:"#7C3AED"})))
+      ),
+      h(Box,{},
+        h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:10,paddingBottom:8,borderBottom:"2px solid #E2E8F0"}},"Grupos de Población"),
+        Object.entries(POB).map(([pob,c])=>{
+          const n=pacs.filter(p=>p.pob===pob).length;
+          return h('div',{key:pob,style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
+            h('div',{style:{width:170,display:"flex",alignItems:"center",gap:6}},
+              h('div',{style:{width:10,height:10,borderRadius:2,background:c.bg,flexShrink:0}}),
+              h('span',{style:{fontSize:11,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},pob)
+            ),
+            h('div',{style:{flex:1,height:13,background:"#F1F5F9",borderRadius:4,overflow:"hidden"}},
+              h('div',{style:{height:"100%",width:pct(n,N)+"%",background:c.bg,transition:"width .4s"}})
+            ),
+            h('div',{style:{width:44,fontWeight:700,color:"#1E293B",fontSize:13,textAlign:"right"}},nFmt(n)),
+            h('div',{style:{width:44,color:"#94A3B8",fontSize:11,textAlign:"right"}},pct(n,N)+"%")
+          );
+        })
+      ),
+      h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h(Box,{},
+          h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:8,paddingBottom:6,borderBottom:"2px solid #E2E8F0"}},"⭐ TOP Adecuación"),
+          h('div',{style:{fontSize:32,fontWeight:800,color:"#1E293B",marginBottom:8}},tm+"%"),
+          h(IdxBar,{label:"Media pacientes",value:tm,om:OSI_ST.tm,op:OSI_ST.tp,color:"#6366F1"})
+        ),
+        h(Box,{},
+          h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B",marginBottom:8,paddingBottom:6,borderBottom:"2px solid #E2E8F0"}},"🔍 Auditoría"),
+          h('div',{style:{fontSize:32,fontWeight:800,color:"#1E293B",marginBottom:8}},am+"%"),
+          pend>0&&h('div',{style:{padding:"7px 10px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:7,marginBottom:8,fontSize:11,color:"#92400E"}},
+            "⚠️ "+nFmt(pend)+" pacientes con pendientes ("+pct(pend,N)+"%)"),
+          h(IdxBar,{label:"Media pacientes",value:am,om:OSI_ST.am,op:OSI_ST.ap,color:"#0891B2"})
+        )
+      )
+    );
+  }
+
+  // ── TAB DETALLE ──────────────────────────────────────────────
+  const DCOLS=[
+    {k:"id",l:"ID",def:true,fix:true},{k:"cic",l:"CIC",def:false},{k:"sexo",l:"Sexo",def:true},
+    {k:"edad",l:"Edad",def:true},{k:"osi",l:"OSI",def:true},{k:"centro",l:"Centro",def:true},
+    {k:"cupo",l:"Cupo",def:false},{k:"medico",l:"Médico",def:false},
+    {k:"pob",l:"Grupo Pob.",def:true},{k:"caracts",l:"Perfiles",def:true},
+    {k:"compl",l:"Complejidad",def:true},{k:"top_adec",l:"TOP%",def:true},{k:"audit_adec",l:"Audit%",def:false},
+  ];
+  const PS=50;
+
+  function TabDetalle({pacs,canCIC,critsData,loadedG,onLoadG}){
+    const [q,setQ]=useState(""); const [pg,setPg]=useState(1);
+    const [vis,setVis]=useState(DCOLS.filter(c=>c.def).map(c=>c.k));
+    const [co,setCo]=useState(false); const [pat,setPat]=useState(null);
+    const fil=useMemo(()=>pacs.filter(p=>!q||[p.id,p.cic,p.centro,p.medico].some(v=>String(v||"").toLowerCase().includes(q.toLowerCase()))),[pacs,q]);
+    const tot=Math.max(1,Math.ceil(fil.length/PS));
+    const rows=fil.slice((pg-1)*PS,pg*PS);
+    const cols=DCOLS.filter(c=>vis.includes(c.k));
+    const tog=k=>{if(DCOLS.find(c=>c.k===k)?.fix)return; vis.includes(k)?vis.length>2&&setVis(v=>v.filter(x=>x!==k)):setVis(v=>[...v,k]);};
+
+    return h(Fragment,{},
+      pat&&h(Modal,{pat,canCIC,critsData,loadedG,onLoadG,onClose:()=>setPat(null)}),
+      // toolbar
+      h('div',{style:{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}},
+        h('div',{style:{position:"relative",flex:1,minWidth:180,maxWidth:320}},
+          h('span',{style:{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}, "🔍"),
+          h('input',{value:q,onChange:e=>{setQ(e.target.value);setPg(1);},placeholder:"ID, CIC, centro, médico…",
+            style:{width:"100%",padding:"9px 12px 9px 34px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,outline:"none"}})
+        ),
+        h('button',{onClick:()=>setCo(x=>!x),style:{padding:"9px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:`1.5px solid ${co?"#93C5FD":"#E2E8F0"}`,background:co?"#DBEAFE":"#F8FAFC",color:co?"#1D4ED8":"#475569"}},
+          "⊞ Columnas "+(co?"▲":"▼")),
+        h('span',{style:{fontSize:11,color:"#94A3B8",marginLeft:"auto"}},nFmt(fil.length)+" pacientes")
+      ),
+      co&&h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 16px",marginBottom:10}},
+        h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase"}},"Columnas visibles"),
+        h('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:5}},
+          DCOLS.map(c=>{
+            const blocked=c.k==="cic"&&!canCIC, on=vis.includes(c.k);
+            return h('div',{key:c.k,onClick:()=>!blocked&&!c.fix&&tog(c.k),
+              style:{padding:"6px 10px",borderRadius:7,border:`1px solid ${on&&!blocked?"#BFDBFE":"#E2E8F0"}`,cursor:blocked||c.fix?"default":"pointer",
+              opacity:blocked?.4:1,fontSize:12,fontWeight:on&&!blocked?600:400,background:on&&!blocked?"#EFF6FF":"#FAFBFC",
+              color:on&&!blocked?"#1D4ED8":"#475569",display:"flex",gap:5,alignItems:"center",userSelect:"none"}},
+              h('span',{style:{fontSize:10}},blocked?"🔒":c.fix?"📌":on?"✓":"○"), c.l
+            );
+          })
+        )
+      ),
+      // table
+      h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",overflow:"hidden"}},
+        h('div',{style:{overflowX:"auto"}},
+          h('table',{style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
+            h('thead',{},h('tr',{style:{background:"#F8FAFC",borderBottom:"2px solid #E2E8F0"}},
+              cols.map(c=>h('th',{key:c.k,style:{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",fontSize:10,textTransform:"uppercase",letterSpacing:.7,whiteSpace:"nowrap"}},c.l)),
+              h('th',{style:{width:40}})
+            )),
+            h('tbody',{},rows.map((p,i)=>h('tr',{key:p.id,onClick:()=>setPat(p),
+              style:{borderBottom:"1px solid #F1F5F9",background:i%2?"#FAFBFC":"white",cursor:"pointer"},
+              onMouseEnter:e=>e.currentTarget.style.background="#EFF6FF",
+              onMouseLeave:e=>e.currentTarget.style.background=i%2?"#FAFBFC":"white"},
+              cols.map(c=>{
+                const td={padding:"8px 12px"};
+                if(c.k==="id")      return h('td',{key:"id",style:{...td,fontFamily:"monospace",fontSize:11,fontWeight:700,color:"#334155"}},p.id);
+                if(c.k==="cic")     return h('td',{key:"cic",style:{...td,fontFamily:"monospace",fontSize:11}},canCIC?p.cic:"🔒");
+                if(c.k==="sexo")    return h('td',{key:"s",style:td},h('span',{style:{display:"inline-block",width:20,height:20,borderRadius:"50%",background:p.sexo==="H"?"#DBEAFE":"#FCE7F3",color:p.sexo==="H"?"#1D4ED8":"#BE185D",fontSize:10,fontWeight:700,lineHeight:"20px",textAlign:"center"}},p.sexo));
+                if(c.k==="edad")    return h('td',{key:"e",style:{...td,fontWeight:700,color:p.edad>=85?"#DC2626":"#1E293B"}},p.edad,(p.edad>=85&&h('span',{style:{fontSize:8,color:"#DC2626",marginLeft:2}},"▲")));
+                if(c.k==="osi")     return h('td',{key:"o",style:{...td,fontSize:11,color:"#64748B"}},p.osi);
+                if(c.k==="centro")  return h('td',{key:"ce",style:{...td,fontWeight:600}},p.centro);
+                if(c.k==="cupo")    return h('td',{key:"cu",style:{...td,fontFamily:"monospace",fontSize:11,color:"#64748B"}},p.cupo);
+                if(c.k==="medico")  return h('td',{key:"m",style:{...td,fontSize:11,color:"#475569"}},p.medico);
+                if(c.k==="pob")     return h('td',{key:"p",style:td},h(PobBadge,{pob:p.pob}));
+                if(c.k==="caracts") return h('td',{key:"ca",style:td},h(Chips,{pat:p}));
+                if(c.k==="compl")   return h('td',{key:"co",style:td},h('div',{style:{display:"flex",alignItems:"center",gap:5}},
+                  h('div',{style:{width:36,height:5,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}},h('div',{style:{height:"100%",width:Math.min(p.compl/25*100,100)+"%",background:p.compl>15?"#DC2626":p.compl>8?"#D97706":"#059669",borderRadius:3}})),
+                  h('span',{style:{fontWeight:700,color:"#475569"}},p.compl)));
+                if(c.k==="top_adec")   return h('td',{key:"t",style:{...td,fontWeight:700,color:p.top_adec>=OSI_ST.tp?"#059669":p.top_adec>=OSI_ST.tm?"#D97706":"#DC2626"}},p.top_adec+"%");
+                if(c.k==="audit_adec") return h('td',{key:"a",style:{...td,fontWeight:700,color:p.audit_adec>=OSI_ST.ap?"#059669":p.audit_adec>=OSI_ST.am?"#D97706":"#DC2626"}},p.audit_adec+"%");
+                return h('td',{key:c.k});
+              }),
+              h('td',{style:{padding:"8px 12px"}},
+                h('button',{onClick:e=>{e.stopPropagation();setPat(p);},style:{padding:"3px 8px",background:"#F1F5F9",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,cursor:"pointer",color:"#475569",fontWeight:600}},"Ver")
+              )
+            )))
+          )
+        ),
+        h('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderTop:"1px solid #F1F5F9",background:"#FAFBFC"}},
+          h('span',{style:{fontSize:12,color:"#94A3B8"}},"Mostrando "+nFmt((pg-1)*PS+1)+"–"+nFmt(Math.min(pg*PS,fil.length))+" de "+nFmt(fil.length)),
+          h('div',{style:{display:"flex",gap:3}},
+            h('button',{onClick:()=>setPg(p=>Math.max(1,p-1)),disabled:pg===1,style:{padding:"4px 10px",border:"1px solid #E2E8F0",borderRadius:6,background:"white",cursor:pg===1?"default":"pointer",color:pg===1?"#CBD5E1":"#475569",fontSize:12}},"←"),
+            [...Array(Math.min(5,tot))].map((_,i)=>{
+              const n=Math.max(1,Math.min(pg-2,tot-4))+i;
+              return h('button',{key:n,onClick:()=>setPg(n),style:{padding:"4px 10px",border:"1px solid",borderColor:pg===n?"#3B82F6":"#E2E8F0",borderRadius:6,background:pg===n?"#3B82F6":"white",color:pg===n?"white":"#475569",cursor:"pointer",fontSize:12,fontWeight:pg===n?700:400}},n);
+            }),
+            h('button',{onClick:()=>setPg(p=>Math.min(tot,p+1)),disabled:pg===tot,style:{padding:"4px 10px",border:"1px solid #E2E8F0",borderRadius:6,background:"white",cursor:pg===tot?"default":"pointer",color:pg===tot?"#CBD5E1":"#475569",fontSize:12}},"→")
+          )
+        )
+      )
+    );
+  }
+
+  // ── TAB ANÁLISIS ─────────────────────────────────────────────
+  // ── LISTADO EXTERNO ───────────────────────────────────────────
+  function SeccionListado({pacs}){
+    const [estado,setEstado]=useState("idle"); // idle|procesando|listo
+    const [resultado,setResultado]=useState(null);
+    const [error,setError]=useState(null);
+    const fileRef = React.useRef();
+
+    const procesarArchivo = async(file) => {
+      setEstado("procesando"); setError(null); setResultado(null);
+      try {
+        const txt = await file.text();
+        let ids = [];
+
+        if(file.name.endsWith(".csv")){
+          // CSV: buscar columnas id, cic, paciente, patient
+          const lines = txt.split("\n").filter(l=>l.trim());
+          const header = lines[0].toLowerCase().split(/[,;\t]/);
+          const idxId  = header.findIndex(h=>["id","paciente","patient"].includes(h.trim()));
+          const idxCic = header.findIndex(h=>h.trim()==="cic");
+          const col = idxId>=0?idxId:idxCic>=0?idxCic:0;
+          ids = lines.slice(1).map(l=>l.split(/[,;\t]/)[col]?.trim()).filter(Boolean);
+        } else {
+          // Excel: parsear como texto línea a línea (sin librerías)
+          // Leer como ArrayBuffer e intentar extraer strings
+          const buf = await file.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          // Extraer strings ASCII/UTF-8 del binario (heurístico para xlsx)
+          let str="", found=[];
+          for(let i=0;i<bytes.length-1;i++){
+            const c=bytes[i];
+            if(c>=48&&c<=57){ str+=String.fromCharCode(c); }
+            else if(str.length>=5&&str.length<=15){ found.push(str); str=""; }
+            else { str=""; }
+          }
+          // Filtrar los que parecen IDs numéricos de 6-12 dígitos
+          ids = [...new Set(found.filter(s=>/^\d{6,12}$/.test(s)))];
+        }
+
+        if(!ids.length){ setError("No se encontraron IDs válidos en el archivo. Usa CSV con columna 'id' o 'cic'."); setEstado("idle"); return; }
+
+        // Cruzar con la BD en memoria
+        const idSet   = new Set(ids);
+        const cicSet  = new Set(ids);
+        const enBD    = pacs.filter(p=> idSet.has(String(p.id)) || cicSet.has(String(p.cic)));
+        const idsEnBD = new Set([...enBD.map(p=>String(p.id)), ...enBD.map(p=>String(p.cic))]);
+        const noEnBD  = ids.filter(id=> !idsEnBD.has(id));
+
+        setResultado({ total:ids.length, enBD, noEnBD, ids });
+        setEstado("listo");
+      } catch(e){
+        setError("Error al procesar el archivo: "+e.message);
+        setEstado("idle");
+      }
+    };
+
+    const descargarNoEncontrados = () => {
+      if(!resultado?.noEnBD?.length) return;
+      const csv = "id_o_cic\n" + resultado.noEnBD.join("\n");
+      const blob = new Blob([csv],{type:"text/csv;charset=utf-8;"});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href=url; a.download="pacientes_no_encontrados.csv"; a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const N = resultado?.enBD?.length||0;
+    const nFmt2 = n=>Number(n||0).toLocaleString("es-ES");
+
+    return h('div',{style:{marginTop:20}},
+      // CABECERA
+      h('div',{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}},
+        h('div',{style:{width:8,height:8,borderRadius:"50%",background:"#6366F1"}}),
+        h('div',{style:{fontSize:14,fontWeight:800,color:"#1E293B"}}, "Análisis de listado externo"),
+        h('div',{style:{fontSize:12,color:"#64748B"}},"Sube un Excel o CSV con IDs/CICs para cruzar con la BD")
+      ),
+
+      // ZONA SUBIDA
+      estado!=="listo"&&h('div',{
+        onClick:()=>fileRef.current?.click(),
+        onDragOver:e=>e.preventDefault(),
+        onDrop:e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) procesarArchivo(f); },
+        style:{border:"2px dashed #CBD5E1",borderRadius:12,padding:"32px 24px",textAlign:"center",cursor:"pointer",background:"#FAFBFC",transition:"border-color .2s"},
+        onMouseEnter:e=>e.currentTarget.style.borderColor="#6366F1",
+        onMouseLeave:e=>e.currentTarget.style.borderColor="#CBD5E1",
+      },
+        estado==="procesando"
+          ? h('div',{},"⏳ Procesando archivo…")
+          : h('div',{},
+              h('div',{style:{fontSize:32,marginBottom:8}},"📂"),
+              h('div',{style:{fontSize:13,fontWeight:700,color:"#475569",marginBottom:4}},"Arrastra aquí tu archivo o haz clic para seleccionar"),
+              h('div',{style:{fontSize:11,color:"#94A3B8"}},"Formatos soportados: Excel (.xlsx) · CSV (.csv)"),
+              h('div',{style:{fontSize:11,color:"#94A3B8",marginTop:4}},"El archivo debe tener una columna con 'id' o 'cic'")
+            ),
+        h('input',{ref:fileRef,type:"file",accept:".xlsx,.xls,.csv",style:{display:"none"},
+          onChange:e=>{ const f=e.target.files[0]; if(f) procesarArchivo(f); }})
+      ),
+
+      // ERROR
+      error&&h('div',{style:{padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,fontSize:12,color:"#991B1B",marginTop:8}},
+        "❌ "+error
+      ),
+
+      // RESULTADOS
+      resultado&&h('div',{style:{marginTop:16}},
+
+        // RESUMEN NUMÉRICO
+        h('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}},
+          [
+            ["Total en listado",    resultado.total,     "#6366F1"],
+            ["✅ Encontrados en BD", resultado.enBD.length, "#059669"],
+            ["❌ No encontrados",    resultado.noEnBD.length,"#DC2626"],
+          ].map(([l,n,c])=>h('div',{key:l,style:{background:c+"10",border:"1px solid "+c+"30",borderRadius:10,padding:"14px 16px",textAlign:"center"}},
+            h('div',{style:{fontSize:11,color:c,fontWeight:700,marginBottom:4}},l),
+            h('div',{style:{fontSize:36,fontWeight:900,color:c,lineHeight:1}}),
+            h('div',{style:{fontSize:32,fontWeight:900,color:c,lineHeight:1}},nFmt2(n)),
+            h('div',{style:{fontSize:11,color:"#94A3B8",marginTop:4}},
+              n>0?((n/resultado.total*100).toFixed(1)+"%"):""
+            )
+          ))
+        ),
+
+        // BOTÓN DESCARGAR NO ENCONTRADOS
+        resultado.noEnBD.length>0&&h('div',{style:{marginBottom:16}},
+          h('button',{onClick:descargarNoEncontrados,
+            style:{display:"flex",alignItems:"center",gap:8,padding:"9px 18px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,color:"#991B1B",fontSize:12,fontWeight:700,cursor:"pointer"}},
+            "⬇️  Descargar listado de NO encontrados ("+nFmt2(resultado.noEnBD.length)+" pacientes)"
+          )
+        ),
+
+        // ANÁLISIS DE LOS ENCONTRADOS
+        N>0&&h('div',{},
+          h('div',{style:{fontSize:13,fontWeight:800,color:"#1E293B",marginBottom:10}},
+            "Características de los "+nFmt2(N)+" pacientes encontrados"
+          ),
+          // GRUPOS DE POBLACIÓN
+          h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px",marginBottom:10}},
+            h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.7,marginBottom:10}},"Grupo de Población"),
+            Object.entries(POB).map(([pob,c])=>{
+              const n=resultado.enBD.filter(p=>p.pob===pob).length;
+              if(!n) return null;
+              return h('div',{key:pob,style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
+                h('div',{style:{width:10,height:10,borderRadius:2,background:c.bg,flexShrink:0}}),
+                h('span',{style:{width:200,fontSize:11,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},pob),
+                h('div',{style:{flex:1,height:12,background:"#F1F5F9",borderRadius:4,overflow:"hidden"}},
+                  h('div',{style:{height:"100%",width:pct(n,N)+"%",background:c.bg,borderRadius:4}})
+                ),
+                h('span',{style:{width:36,fontWeight:700,color:"#1E293B",fontSize:12,textAlign:"right"}},n),
+                h('span',{style:{width:42,color:"#94A3B8",fontSize:10,textAlign:"right"}},pct(n,N)+"%")
+              );
+            }),
+          ),
+          // PERFILES Y STATS
+          h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
+            h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
+              h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.7,marginBottom:10}},"Perfiles activos"),
+              CARACTS.map(c=>{
+                const n=resultado.enBD.filter(p=>p[c.k]).length;
+                if(!n) return null;
+                return h('div',{key:c.k,style:{display:"flex",alignItems:"center",gap:8,marginBottom:5}},
+                  h('div',{style:{width:8,height:8,borderRadius:"50%",background:c.c,flexShrink:0}}),
+                  h('span',{style:{flex:1,fontSize:11,color:"#475569"}},c.l),
+                  h('span',{style:{fontWeight:700,color:c.c,fontSize:12}},n),
+                  h('span',{style:{color:"#94A3B8",fontSize:10,marginLeft:2}},pct(n,N)+"%")
+                );
+              })
+            ),
+            h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
+              h('div',{style:{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.7,marginBottom:10}},"Índices medios"),
+              [
+                ["Complejidad media",   +(resultado.enBD.reduce((s,p)=>s+(p.compl||0),0)/N).toFixed(1),"#6366F1"],
+                ["Comorbilidad media",  +(resultado.enBD.reduce((s,p)=>s+(p.co||0),0)/N).toFixed(1),"#0891B2"],
+                ["Hiperfrecuent. media",+(resultado.enBD.reduce((s,p)=>s+(p.fr||0),0)/N).toFixed(1),"#D97706"],
+                ["TOP adecuación",      Math.round(resultado.enBD.reduce((s,p)=>s+(p.top_adec||0),0)/N)+"%","#059669"],
+                ["Auditoría",           Math.round(resultado.enBD.reduce((s,p)=>s+(p.audit_adec||0),0)/N)+"%","#7C3AED"],
+                ["Con pendientes aud.", resultado.enBD.filter(p=>(p.audit_pend||[]).length>0).length,"#DC2626"],
+              ].map(([l,v,c])=>h('div',{key:l,style:{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #F8FAFC"}},
+                h('span',{style:{fontSize:11,color:"#64748B"}},l),
+                h('span',{style:{fontSize:13,fontWeight:700,color:c}},v)
+              ))
+            )
+          )
+        ),
+
+        // BOTÓN NUEVA BÚSQUEDA
+        h('button',{onClick:()=>{setEstado("idle");setResultado(null);setError(null);},
+          style:{marginTop:14,padding:"8px 18px",background:"#F1F5F9",border:"1px solid #E2E8F0",borderRadius:7,color:"#475569",fontSize:12,fontWeight:600,cursor:"pointer"}},
+          "🔄 Nuevo listado"
+        )
+      )
+    );
+  }
+
+  function TabAnalisis({pacs}){
+    const [campo,setCampo]=useState("pob");
+    const [valor,setValor]=useState(Object.keys(POB)[0]);
+    const [ejecutado,setEjecutado]=useState(false);
+
+    const campos=[
+      {k:"pob",   l:"Grupo Población", tipo:"select", opts:Object.keys(POB)},
+      {k:"geron", l:"Gerontológico",   tipo:"bool"},
+      {k:"pal",   l:"Paliativo",       tipo:"bool"},
+      {k:"dep",   l:"Dep. Domicilio",  tipo:"bool"},
+      {k:"hfh",   l:"HF Hospitalario", tipo:"bool"},
+      {k:"hfap",  l:"HF AP",           tipo:"bool"},
+      {k:"comorb",l:"Comorbilidad",    tipo:"bool"},
+      {k:"polimed",l:"Polimedicado",   tipo:"bool"},
+      {k:"gip_ap",l:"GIP AP",          tipo:"bool"},
+      {k:"gip_hosp",l:"GIP Hosp.",     tipo:"bool"},
+      {k:"osi",   l:"OSI",             tipo:"select", opts:["01 OSID","02 OSIT","03 RESTO OSI"]},
+      {k:"centro",l:"Centro",          tipo:"select", opts:CENTROS},
+    ];
+    const ci = campos.find(c=>c.k===campo)||campos[0];
+
+    const grA = pacs.filter(p=> ci.tipo==="bool" ? Boolean(p[campo]) : p[campo]===valor);
+    const grB = pacs.filter(p=> ci.tipo==="bool" ? !p[campo]         : p[campo]!==valor);
+    const lblA= ci.tipo==="bool" ? ci.l+" = Sí" : valor;
+    const lblB= ci.tipo==="bool" ? ci.l+" = No" : "Resto";
+
+    const stats=g=>{
+      if(!g.length) return {N:0,H:0,M:0,edad:0,compl:0,top:0,aud:0};
+      return {
+        N:g.length,
+        H:g.filter(p=>p.sexo==="H").length,
+        M:g.filter(p=>p.sexo==="M").length,
+        edad:+(g.reduce((s,p)=>s+p.edad,0)/g.length).toFixed(1),
+        compl:+(g.reduce((s,p)=>s+(p.compl||0),0)/g.length).toFixed(1),
+        top:Math.round(g.reduce((s,p)=>s+(p.top_adec||0),0)/g.length),
+        aud:Math.round(g.reduce((s,p)=>s+(p.audit_adec||0),0)/g.length),
+      };
+    };
+    const sA=stats(grA), sB=stats(grB);
+
+    const Card=({lbl,s,color})=>h('div',{style:{background:"white",border:"2px solid "+color+"30",borderRadius:10,padding:"16px 18px"}},
+      h('div',{style:{fontSize:13,fontWeight:800,color,marginBottom:2}},lbl),
+      h('div',{style:{fontSize:40,fontWeight:900,color,lineHeight:1}},nFmt(s.N)),
+      h('div',{style:{fontSize:11,color:"#64748B",marginBottom:12}},pct(s.N,pacs.length)+"% del total"),
+      [["♂ Hombres",nFmt(s.H),pct(s.H,s.N)+"%"],
+       ["♀ Mujeres",nFmt(s.M),pct(s.M,s.N)+"%"],
+       ["Edad media",s.edad+" años",""],
+       ["Complejidad media",s.compl,""],
+       ["TOP adecuación",s.top+"%",""],
+       ["Auditoría media",s.aud+"%",""],
+      ].map(([l,v,sub])=>h('div',{key:l,style:{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #F8FAFC"}},
+        h('span',{style:{fontSize:11,color:"#64748B"}},l),
+        h('div',{style:{textAlign:"right"}},
+          h('span',{style:{fontSize:12,fontWeight:700,color:"#1E293B"}},v),
+          sub&&h('span',{style:{fontSize:10,color:"#94A3B8",marginLeft:4}},sub)
+        )
+      ))
+    );
+
+    return h('div',{style:{display:"flex",flexDirection:"column",gap:14}},
+      // CONFIGURACIÓN
+      h('div',{style:{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
+        h('div',{style:{fontSize:13,fontWeight:800,color:"#1E293B",marginBottom:12}},"📊 Análisis comparativo — Grupo vs Resto"),
+        h('div',{style:{display:"flex",gap:8,alignItems:"flex-end"}},
+          h('div',{style:{flex:1}},
+            h('div',{style:{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}},"Campo de análisis"),
+            h('select',{value:campo,onChange:e=>{setCampo(e.target.value);setEjecutado(false);setValor(campos.find(c=>c.k===e.target.value)?.opts?.[0]||"");},
+              style:{width:"100%",padding:"8px 10px",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12}},
+              campos.map(c=>h('option',{key:c.k,value:c.k},c.l))
+            )
+          ),
+          ci.tipo==="select"&&h('div',{style:{flex:1}},
+            h('div',{style:{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}},"Valor"),
+            h('select',{value:valor,onChange:e=>{setValor(e.target.value);setEjecutado(false);},
+              style:{width:"100%",padding:"8px 10px",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12}},
+              (ci.opts||[]).map(o=>h('option',{key:o,value:o},o))
+            )
+          ),
+          h('button',{onClick:()=>setEjecutado(true),
+            style:{padding:"8px 22px",background:"#1D4ED8",border:"none",borderRadius:7,color:"white",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}},
+            "▶ Ejecutar"
+          )
+        )
+      ),
+
+      // RESULTADOS
+      ejecutado&&grA.length>0&&h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h(Card,{lbl:lblA,s:sA,color:"#3B82F6"}),
+        h(Card,{lbl:lblB,s:sB,color:"#94A3B8"}),
+
+        // Comparativa por grupo de población
+        h('div',{style:{gridColumn:"span 2",background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px"}},
+          h('div',{style:{fontSize:12,fontWeight:700,color:"#1E293B",marginBottom:12}},"Comparativa por grupo de población"),
+          Object.entries(POB).map(([pob,c])=>{
+            const nA=grA.filter(p=>p.pob===pob).length;
+            const nB=grB.filter(p=>p.pob===pob).length;
+            if(!nA&&!nB) return null;
+            const tot=nA+nB;
+            return h('div',{key:pob,style:{marginBottom:8}},
+              h('div',{style:{fontSize:11,color:"#475569",marginBottom:3}},pob),
+              h('div',{style:{display:"flex",gap:4,alignItems:"center"}},
+                h('div',{style:{width:Math.round(nA/tot*100)+"%",minWidth:4,height:16,background:"#3B82F6",borderRadius:"4px 0 0 4px",display:"flex",alignItems:"center",justifyContent:"center"}},
+                  nA>0&&h('span',{style:{fontSize:9,color:"white",fontWeight:700}},nFmt(nA))
+                ),
+                h('div',{style:{width:Math.round(nB/tot*100)+"%",minWidth:4,height:16,background:"#94A3B8",borderRadius:"0 4px 4px 0",display:"flex",alignItems:"center",justifyContent:"center"}},
+                  nB>0&&h('span',{style:{fontSize:9,color:"white",fontWeight:700}},nFmt(nB))
+                )
+              )
+            );
+          })
+        )
+      ),
+
+      ejecutado&&grA.length===0&&h('div',{style:{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}},"Sin pacientes para este grupo con los filtros actuales.")
+    );
+  }
+
+  // ── TAB FILTROS ──────────────────────────────────────────────
+  function TabFiltros({filtros,setFiltros,pacs,loadedG,onLoadG}){
+    const [exp,setExp]=useState({});
+    const tog=k=>setExp(e=>({...e,[k]:!e[k]}));
+    const add=f=>setFiltros(prev=>[...prev,{...f,id:Date.now(),logica:"Y"}]);
+    const rem=id=>setFiltros(prev=>prev.filter(x=>x.id!==id));
+    const upd=(id,l)=>setFiltros(prev=>prev.map(f=>f.id===id?{...f,logica:l}:f));
+    const LC={Y:"#3B82F6",O:"#D97706",NO:"#DC2626"};
+    const nF=applyF(pacs,filtros).length;
+
+    const Sec=({k,label,badge,children})=>h('div',{style:{border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden",marginBottom:6}},
+      h('div',{onClick:()=>tog(k),style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#F8FAFC",cursor:"pointer",userSelect:"none"}},
+        h('div',{style:{display:"flex",alignItems:"center",gap:6}},
+          h('span',{style:{fontSize:12,fontWeight:700,color:"#1E293B"}},label),
+          badge&&h('span',{style:{fontSize:9,background:"#DBEAFE",color:"#1D4ED8",padding:"1px 6px",borderRadius:3,fontWeight:700}},badge)
+        ),
+        h('span',{style:{fontSize:10,color:"#94A3B8"}},exp[k]?"▲":"▼")
+      ),
+      exp[k]&&h('div',{style:{padding:"10px 12px"}},children)
+    );
+    const FB=({campo,label})=>h('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}},
+      h('span',{style:{fontSize:12,color:"#475569"}},label),
+      h('div',{style:{display:"flex",gap:4}},
+        ["Sí","No"].map(v=>h('button',{key:v,onClick:()=>add({campo,label:label+"="+v,tipo:"bool",valor:v==="Sí"}),
+          style:{padding:"3px 9px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:5,background:"white",cursor:"pointer",color:"#475569"}},v))
+      )
+    );
+    const FS=({campo,label,opts})=>h('div',{style:{marginBottom:6}},
+      h('div',{style:{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:3}},label),
+      h('div',{style:{display:"flex",flexWrap:"wrap",gap:3}},
+        opts.map(o=>h('button',{key:o,onClick:()=>add({campo,label:label+"="+o,tipo:"select",valor:o}),
+          style:{padding:"2px 7px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}},o))
+      )
+    );
+
+    return h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
+      h('div',{},
+        h('div',{style:{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}},"📋 Datos Básicos"),
+        h(Sec,{k:"sexo",label:"Sexo"},
+          h('div',{style:{display:"flex",gap:4}},
+            [["H","♂ Hombre","#1D4ED8","#EFF6FF"],["M","♀ Mujer","#BE185D","#FDF2F8"]].map(([v,l,c,bg])=>
+              h('button',{key:v,onClick:()=>add({campo:"sexo",label:"Sexo="+l,tipo:"select",valor:v}),
+                style:{flex:1,padding:"6px",fontSize:11,border:`1px solid ${c}30`,borderRadius:5,background:bg,cursor:"pointer",color:c,fontWeight:600}},l)
+            )
+          )
+        ),
+        h(Sec,{k:"osi",label:"OSI"},h(FS,{campo:"osi",label:"OSI",opts:["01 OSID","02 OSIT","03 RESTO OSI"]})),
+        h(Sec,{k:"centro",label:"Centro"},h(FS,{campo:"centro",label:"Centro",opts:CENTROS})),
+        h(Sec,{k:"bloque",label:"Bloque PCRON"},h(FS,{campo:"bloque",label:"Bloque",opts:BLOQUES})),
+        h(Sec,{k:"gip",label:"Programas GIP"},
+          h(FB,{campo:"gip_ap",label:"GIP AP"}),
+          h(FB,{campo:"gip_hosp",label:"GIP Hosp."}),
+          h(FB,{campo:"gip_osarean",label:"GIP OSAREAN"})
+        )
+      ),
+      h('div',{},
+        h('div',{style:{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}},"🏷️ Características"),
+        h(Sec,{k:"pob",label:"Grupo Población"},h(FS,{campo:"pob",label:"Grupo",opts:Object.keys(POB)})),
+        h(Sec,{k:"perfiles",label:"Perfiles"},CARACTS.map(c=>h(FB,{key:c.k,campo:c.k,label:c.l}))),
+        h(Sec,{k:"top",label:"TOP Adecuación"},
+          h('div',{style:{display:"flex",gap:4}},
+            [["≥80%",80,100],["60–79%",60,79],["<60%",0,59]].map(([l,mn,mx])=>
+              h('button',{key:l,onClick:()=>add({campo:"top_adec",label:"TOP "+l,tipo:"range",min:mn,max:mx}),
+                style:{flex:1,padding:"5px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}},l)
+            )
+          )
+        )
+      ),
+      h('div',{},
+        h('div',{style:{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}},"📦 Criterios Clínicos"),
+        GRUPOS_CRIT.map(g=>{
+          const loaded=loadedG.includes(g.id);
+          return h(Sec,{key:g.id,k:"c_"+g.id,label:g.label,badge:loaded?"✅":"📦 No cargado"},
+            !loaded
+              ? h('div',{style:{textAlign:"center",padding:"10px 0"}},
+                  h('div',{style:{fontSize:11,color:"#94A3B8",marginBottom:8}},"No descargado"),
+                  h('button',{onClick:()=>onLoadG(g.id,pacs.slice(0,5000).map(p=>p.id)),
+                    style:{padding:"6px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}},
+                    "📦 Cargar desde Supabase")
+                )
+              : g.keys.map(k=>h(FB,{key:k,campo:k,label:k.replace("crit_","").replace(/_/g," ")}))
+          );
+        }),
+        filtros.length>0&&h('div',{style:{marginTop:12,padding:"10px 12px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:9}},
+          h('div',{style:{fontSize:10,fontWeight:700,color:"#1D4ED8",marginBottom:6}},"FILTROS ACTIVOS ("+filtros.length+")"),
+          filtros.map(f=>h('div',{key:f.id,style:{display:"flex",alignItems:"center",gap:5,marginBottom:4}},
+            h('select',{value:f.logica,onChange:e=>upd(f.id,e.target.value),
+              style:{fontSize:9,fontWeight:700,padding:"1px 3px",borderRadius:3,border:"none",background:LC[f.logica]+"20",color:LC[f.logica],cursor:"pointer"}},
+              ["Y","O","NO"].map(l=>h('option',{key:l,value:l},l))
+            ),
+            h('span',{style:{fontSize:10,flex:1,color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},f.label),
+            h('button',{onClick:()=>rem(f.id),style:{background:"none",border:"none",color:"#94A3B8",cursor:"pointer",fontSize:14,lineHeight:1}},"×")
+          )),
+          h('div',{style:{borderTop:"1px solid #BFDBFE",marginTop:8,paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            h('span',{style:{fontSize:10,color:"#1D4ED8",fontWeight:700}},"→ "+nFmt(nF)+" pacientes"),
+            h('button',{onClick:()=>setFiltros([]),style:{padding:"4px 10px",background:"#DC2626",border:"none",borderRadius:5,color:"white",fontSize:11,cursor:"pointer"}},"Limpiar")
+          )
+        )
+      )
+    );
+  }
+
+  // ── APP ──────────────────────────────────────────────────────
+  function App(){
+    const [loading,setLoading]=useState(true);
+    const [prog,setProg]=useState(0);
+    const [err,setErr]=useState(null);
+    const [pacs,setPacs]=useState([]);
+    const [tab,setTab]=useState("VISOR");
+    const [role,setRole]=useState("ADM");
+    const [filtros,setFiltros]=useState([]);
+    const [loadedG,setLoadedG]=useState([]);
+    const [critsData,setCritsData]=useState({});
+
+    useEffect(()=>{
+      setBar(90,"Conectando con Supabase…");
+      cargarPacs(p=>{setProg(p);setBar(90+p*.1,"Cargando pacientes… "+p+"%");})
+        .then(data=>{
+          setPacs(data);
+          document.getElementById('boot').style.display='none';
+          setLoading(false);
+        })
+        .catch(e=>{
+          setErr(e.message);
+          document.getElementById('boot').style.display='none';
+          setLoading(false);
+        });
+    },[]);
+
+    const handleLoadG=useCallback(async(gid,ids)=>{
+      if(loadedG.includes(gid)) return;
+      const g=GRUPOS_CRIT.find(x=>x.id===gid);
+      if(!g) return;
+      const map=await cargarCrits(g,ids);
+      if(Object.keys(map).length) setCritsData(prev=>{
+        const next={...prev};
+        g.keys.forEach(k=>{next[k]=next[k]||{};Object.entries(map).forEach(([id,row])=>{next[k][id]=row;});});
+        return next;
+      });
+      setLoadedG(prev=>[...prev,gid]);
+    },[loadedG]);
+
+    const canCIC=ROLES[role]?.cic||false;
+    const filPacs=useMemo(()=>applyF(pacs,filtros),[pacs,filtros]);
+    const pctT=+pct(filPacs.length,META.totalBD);
+    const TABS=[{k:"VISOR",i:"🏠"},{k:"FILTROS",i:"🎛"},{k:"ESTADÍSTICAS",i:"📊"},{k:"DETALLE",i:"📋"},{k:"ANÁLISIS",i:"📈"},
+      ...(ROLES[role]?.adm?[{k:"ADMINISTRACIÓN",i:"⚙️",adm:true}]:[])];
+
+    if(loading) return h('div',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"#94A3B8",fontSize:14}},"Cargando…");
+
+    return h('div',{style:{fontFamily:"system-ui,sans-serif",background:"#F0F4F8",minHeight:"100vh"}},
+      // TOPBAR
+      h('div',{style:{background:"linear-gradient(135deg,#060E1E,#0F2444)",padding:"9px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}},
+        h('div',{style:{display:"flex",alignItems:"center",gap:10}},
+          h('div',{style:{width:34,height:34,borderRadius:8,background:"linear-gradient(135deg,#3B82F6,#06B6D4)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:900,fontSize:16}},"V"),
+          h('div',{},
+            h('div',{style:{color:"white",fontWeight:800,fontSize:14,letterSpacing:1}},"VISOR PCRON"),
+            h('div',{style:{color:"#475569",fontSize:10}},"Paciente Crónico · Osakidetza · "+META.version+" · "+META.fecha)
+          )
+        ),
+        h('div',{style:{display:"flex",alignItems:"center",gap:10}},
+          err&&h('div',{style:{background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:5,padding:"3px 10px",fontSize:10,color:"#991B1B",fontWeight:700,maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"⚠️ "+err),
+          !err&&h('div',{style:{fontSize:11,color:"#93C5FD",fontWeight:600}},nFmt(pacs.length)+" pacientes"),
+          h('div',{style:{width:8,height:8,borderRadius:"50%",background:pacs.length>0?"#22C55E":"#EF4444",boxShadow:"0 0 6px "+(pacs.length>0?"#22C55E":"#EF4444")}}),
+          h('select',{value:role,onChange:e=>setRole(e.target.value),style:{fontSize:11,background:"rgba(255,255,255,0.1)",color:"#CBD5E1",border:"1px solid rgba(255,255,255,0.2)",borderRadius:5,padding:"4px 8px",cursor:"pointer"}},
+            Object.entries(ROLES).map(([k,v])=>h('option',{key:k,value:k,style:{background:"#0F2444"}},v.l))
+          )
+        )
+      ),
+      // HERO
+      h('div',{style:{background:"linear-gradient(160deg,#0B1628,#112240,#0D3458)",padding:"16px 24px 0"}},
+        h('div',{style:{display:"flex",gap:12,marginBottom:14}},
+          h('div',{style:{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(59,130,246,0.4)",borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:20}},
+            h('div',{},
+              h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}},"PACIENTES EN VISTA"),
+              h('div',{style:{color:"white",fontSize:52,fontWeight:900,lineHeight:1,letterSpacing:-2}},nFmt(filPacs.length)),
+              h('div',{style:{color:"#475569",fontSize:11,marginTop:2}},"de "+nFmt(pacs.length)+" en BD")
+            ),
+            h('div',{style:{width:1,height:60,background:"rgba(255,255,255,0.1)"}}),
+            h('div',{},
+              h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}},"% BD TOTAL"),
+              h('div',{style:{color:"#38BDF8",fontSize:40,fontWeight:800,lineHeight:1}},pctT+"%")
+            ),
+            filtros.length>0&&h(Fragment,{},
+              h('div',{style:{width:1,height:60,background:"rgba(255,255,255,0.1)"}}),
+              h('div',{style:{flex:1}},
+                h('div',{style:{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:5}},"FILTROS ACTIVOS"),
+                h('div',{style:{display:"flex",flexWrap:"wrap",gap:4}},
+                  filtros.map(f=>h('span',{key:f.id,style:{fontSize:10,padding:"2px 7px",borderRadius:4,fontWeight:600,
+                    background:{Y:"#1D4ED820",O:"#D9770620",NO:"#DC262620"}[f.logica],
+                    color:{Y:"#93C5FD",O:"#FCD34D",NO:"#FCA5A5"}[f.logica],
+                    border:"1px solid "+{Y:"rgba(59,130,246,0.3)",O:"rgba(217,119,6,0.3)",NO:"rgba(220,38,38,0.3)"}[f.logica]}},
+                    h('b',{},f.logica)," ",f.label
+                  ))
+                )
+              )
+            )
+          ),
+          // MINI HISTOGRAM
+          h('div',{style:{width:240,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"10px 12px"}},
+            h('div',{style:{color:"#93C5FD",fontSize:8,fontWeight:700,letterSpacing:1.2,marginBottom:8}},"DISTRIBUCIÓN POR GRUPO"),
+            h('div',{style:{display:"flex",gap:2,alignItems:"flex-end",height:44}},
+              Object.entries(POB).map(([pob,c])=>{
+                const n=filPacs.filter(p=>p.pob===pob).length;
+                const mx=Math.max(...Object.keys(POB).map(k=>filPacs.filter(p=>p.pob===k).length),1);
+                return h('div',{key:pob,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}},
+                  h('div',{style:{width:"100%",height:Math.max(3,Math.round(n/mx*36))+"px",background:c.bg,borderRadius:2,transition:"height .4s"}}),
+                  h('div',{style:{color:c.bg,fontSize:6,fontWeight:700}},n>0?n:"")
+                );
+              })
+            )
+          )
+        ),
+        // TABS
+        h('div',{style:{display:"flex",gap:2}},
+          TABS.map(t=>h('button',{key:t.k,onClick:()=>setTab(t.k),style:{
+            padding:"10px 18px",border:"none",cursor:"pointer",fontSize:12,fontWeight:tab===t.k?700:500,
+            borderRadius:"8px 8px 0 0",borderBottom:"2px solid "+(tab===t.k?(t.adm?"#DC2626":"#3B82F6"):"transparent"),
+            background:tab===t.k?"#F0F4F8":"transparent",
+            color:tab===t.k?(t.adm?"#991B1B":"#1E3A5F"):(t.adm?"#FCA5A5":"#94A3B8"),
+            display:"flex",alignItems:"center",gap:5,transition:"all .15s",
+          }},t.i," ",t.k))
+        )
+      ),
+      // CONTENT
+      h('div',{style:{padding:"16px 24px 40px"}},
+        tab==="VISOR"&&h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
+          h('div',{style:{fontSize:18,fontWeight:800,color:"#0F2444",marginBottom:4}},"VISOR PCRON — Paciente Crónico Osakidetza"),
+          h('div',{style:{fontSize:13,color:"#64748B",marginBottom:16}},"Fuente: "+META.fuente+" · Snapshot: "+META.fecha+" · "+nFmt(pacs.length)+" pacientes en BD"),
+          pacs.length===0&&h('div',{style:{padding:"12px 14px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,fontSize:12,color:"#991B1B",marginBottom:12}},
+            "⚠️ No se han podido cargar pacientes.",err?" Error: "+err:""," Comprueba la consola (F12) y verifica que la tabla 'pacientes' existe en Supabase."
+          ),
+          h('div',{style:{padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,fontSize:11,color:"#92400E",lineHeight:1.7}},
+            "🔒 ",h('strong',{},"CIC: "),"ADM/DIR/MAN acceso total · CEN solo su centro · PROFESIONAL solo sus cupos"
+          ),
+          h(SeccionListado,{pacs})
+        ),
+        tab==="FILTROS"&&h(TabFiltros,{filtros,setFiltros,pacs,loadedG,onLoadG:handleLoadG}),
+        tab==="ESTADÍSTICAS"&&h(TabStats,{pacs:filPacs}),
+        tab==="DETALLE"&&h(TabDetalle,{pacs:filPacs,canCIC,critsData,loadedG,onLoadG:handleLoadG}),
+        tab==="ANÁLISIS"&&h(TabAnalisis,{pacs:filPacs}),
+        tab==="ADMINISTRACIÓN"&&h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"24px"}},
+          h('div',{style:{fontSize:16,fontWeight:800,color:"#0F2444",marginBottom:4}},"⚙️ Administración"),
+          h('div',{style:{fontSize:13,color:"#64748B"}},"Gestión usuarios · Recarga Drive→Supabase · Documentos · Informes automáticos")
+        )
+      )
+    );
+  }
+
+  setBar(100,"Listo");
+  ReactDOM.createRoot(document.getElementById("root")).render(h(App,{}));
+}
+</script>
+</body>
+</html>
