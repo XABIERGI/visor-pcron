@@ -78,9 +78,7 @@ function initApp(){
 
   const META = {version:"v6.0",totalBD:97525,fuente:"Osabide Global · Osanaia · OAS",fecha:"03/03/2026 08:14"};
   const BATCH = 1000;
-  const BASIC = "id,cic,sexo,edad,osi,centro,cupo,medico,bloque,gip_ap,gip_hosp,gip_osarean,pob,geron,pal,dep,hfh,hfap,comorb,sano,may85,demog,polimed,social,compl,co,fr,top_adec,audit_adec,audit_pend";
-
-  const POB = {
+    const POB = {
     "01 GERONTOLÓGICO":        {bg:"#7C3AED",lt:"#EDE9FE"},
     "02 PALIATIVO":            {bg:"#DC2626",lt:"#FEE2E2"},
     "03 DEPENDIENTE DOMICILIO":{bg:"#D97706",lt:"#FEF3C7"},
@@ -1083,16 +1081,83 @@ function initApp(){
       ),
       // CONTENT
       h('div',{style:{padding:"16px 24px 40px"}},
-        tab==="VISOR"&&h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
-          h('div',{style:{fontSize:18,fontWeight:800,color:"#0F2444",marginBottom:4}},"VISOR PCRON — Paciente Crónico Osakidetza"),
-          h('div',{style:{fontSize:13,color:"#64748B",marginBottom:16}},"Fuente: "+META.fuente+" · Snapshot: "+META.fecha+" · "+nFmt(pacs.length)+" pacientes en BD"),
-          pacs.length===0&&h('div',{style:{padding:"12px 14px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,fontSize:12,color:"#991B1B",marginBottom:12}},
-            "⚠️ No se han podido cargar pacientes.",err?" Error: "+err:""," Comprueba la consola (F12) y verifica que la tabla 'pacientes' existe en Supabase."
+        tab==="VISOR"&&h('div',{style:{display:"flex",flexDirection:"column",gap:14}},
+          // CABECERA
+          h('div',{style:{background:"linear-gradient(135deg,#0F2444,#1E3A5F)",borderRadius:12,padding:"24px 28px",color:"white"}},
+            h('div',{style:{fontSize:22,fontWeight:900,letterSpacing:.5,marginBottom:4}},"VISOR PCRON"),
+            h('div',{style:{fontSize:14,color:"#93C5FD",fontWeight:600,marginBottom:16}},"Gestión del Paciente Crónico · Osakidetza"),
+            h('div',{style:{display:"flex",gap:24,flexWrap:"wrap"}},
+              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Pacientes en BD"),h('div',{style:{fontSize:28,fontWeight:900,color:"white"}},nFmt(pacs.length))),
+              h('div',{style:{width:1,background:"rgba(255,255,255,0.1)"}}),
+              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Fuentes de datos"),h('div',{style:{fontSize:12,fontWeight:600,color:"#93C5FD",marginTop:2}},META.fuente)),
+              h('div',{style:{width:1,background:"rgba(255,255,255,0.1)"}}),
+              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Ultima actualizacion"),h('div',{style:{fontSize:12,fontWeight:600,color:"#93C5FD",marginTop:2}},META.fechaAct)),
+              h('div',{style:{width:1,background:"rgba(255,255,255,0.1)"}}),
+              h('div',{},h('div',{style:{fontSize:9,color:"#64748B",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},"Version"),h('div',{style:{fontSize:12,fontWeight:600,color:"#93C5FD",marginTop:2}},META.version))
+            )
           ),
-          h('div',{style:{padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,fontSize:11,color:"#92400E",lineHeight:1.7}},
-            "🔒 ",h('strong',{},"CIC: "),"ADM/DIR/MAN acceso total · CEN solo su centro · PROFESIONAL solo sus cupos"
+          // GRUPOS DE POBLACION
+          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
+            h('div',{style:{fontSize:14,fontWeight:800,color:"#0F2444",marginBottom:4}},"Grupos de Poblacion PCRON"),
+            h('div',{style:{fontSize:12,color:"#64748B",marginBottom:14}},"Jerarquia exclusiva - cada paciente pertenece a un unico grupo"),
+            h('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8}},
+              Object.entries(POB).map(([pob,c])=>h('div',{key:pob,style:{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:9,background:c.lt,border:"1px solid "+c.bg+"30"}},
+                h('div',{style:{width:10,height:10,borderRadius:2,background:c.bg,flexShrink:0}}),
+                h('span',{style:{fontSize:12,fontWeight:600,color:c.bg}},pob)
+              ))
+            )
           ),
-          h(SeccionListado,{pacs})
+          // CONFIDENCIALIDAD
+          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #FCD34D",padding:"20px 24px"}},
+            h('div',{style:{fontSize:14,fontWeight:800,color:"#92400E",marginBottom:12}},String.fromCodePoint(0x1F512)+" Confidencialidad y Proteccion de Datos (RGPD)"),
+            h('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}},
+              [["ADM / DIR / MAN","Acceso total - CIC visible","#059669","#D1FAE5"],
+               ["CEN / Jefatura","Solo CICs de su centro","#D97706","#FEF3C7"],
+               ["PROFESIONAL","Solo CICs de sus cupos","#DC2626","#FEE2E2"]
+              ].map(([rol,desc,c,bg])=>h('div',{key:rol,style:{padding:"10px 14px",borderRadius:8,background:bg,border:"1px solid "+c+"30"}},
+                h('div',{style:{fontSize:11,fontWeight:800,color:c,marginBottom:2}},rol),
+                h('div',{style:{fontSize:11,color:"#475569"}},desc)
+              ))
+            ),
+            h('div',{style:{fontSize:11,color:"#92400E",background:"#FEF3C7",padding:"8px 12px",borderRadius:7,border:"1px solid #FCD34D"}},
+              "El CIC es un dato personal sujeto al Reglamento General de Proteccion de Datos (RGPD). Su acceso esta restringido segun el perfil de usuario."
+            )
+          ),
+          // INDICES DE COMPLEJIDAD
+          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
+            h('div',{style:{fontSize:14,fontWeight:800,color:"#0F2444",marginBottom:14}},"Indices de Complejidad"),
+            h('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
+              [["COMORBILIDAD","IC x2 + EPOC x2 + I.Renal x1 + Hepatopatia x1 + Anemia x0.5 + Pluripatologico x1 + Ulceras x1","#059669"],
+               ["HIPERFRECUENTACION","CCEE>6 x1 + Reingresos x10 + N MI x5 + N Otras x2 + HaD x1 + Ingreso>10d x2 + URG x2","#0891B2"],
+               ["COMPLEJIDAD","Suma ponderada de bloques A + B + C + D del perfil clinico del paciente","#7C3AED"]
+              ].map(([t,d,c])=>h('div',{key:t,style:{padding:"14px 16px",borderRadius:9,background:c+"08",border:"1px solid "+c+"30"}},
+                h('div',{style:{fontSize:11,fontWeight:800,color:c,marginBottom:6}},t),
+                h('div',{style:{fontSize:11,color:"#475569",lineHeight:1.5}},d)
+              ))
+            )
+          ),
+          // AUDITORIA
+          h('div',{style:{background:"white",borderRadius:12,border:"1px solid #E2E8F0",padding:"20px 24px"}},
+            h('div',{style:{fontSize:14,fontWeight:800,color:"#0F2444",marginBottom:14}},"Auditoria de Calidad - 4 dimensiones"),
+            h('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginBottom:10}},
+              [["06-18-00-01","Estratificacion"],["06-18-00-02","Equipo de Referencia"],
+               ["06-18-00-03","Formularios"],["06-18-00-04","Seguimiento"]
+              ].map(([cod,desc])=>h('div',{key:cod,style:{padding:"10px 14px",borderRadius:8,background:"#F8FAFC",border:"1px solid #E2E8F0",display:"flex",gap:10,alignItems:"center"}},
+                h('div',{style:{fontSize:9,fontFamily:"monospace",fontWeight:700,color:"#3B82F6",background:"#DBEAFE",padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap"}},cod),
+                h('div',{style:{fontSize:12,fontWeight:600,color:"#1E293B"}},desc)
+              ))
+            ),
+            h('div',{style:{display:"flex",gap:8}},
+              [[">=60%","Verde - Adecuado","#059669","#D1FAE5"],["40-59%","Naranja - Mejorable","#D97706","#FEF3C7"],["<40%","Rojo - Critico","#DC2626","#FEE2E2"]
+              ].map(([r,l,c,bg])=>h('div',{key:r,style:{padding:"6px 12px",borderRadius:6,background:bg,border:"1px solid "+c+"30",fontSize:11}},
+                h('span',{style:{fontWeight:700,color:c}},r),
+                h('span',{style:{color:"#475569"}}," "+l)
+              ))
+            )
+          ),
+          pacs.length===0&&h('div',{style:{padding:"12px 16px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:8,fontSize:11,color:"#991B1B"}},
+            "Sin pacientes cargados. Revisa la consola (F12)."
+          )
         ),
         tab==="FILTROS"&&h(TabFiltros,{filtros,setFiltros,pacs,loadedG,onLoadG:handleLoadG}),
         tab==="ESTADÍSTICAS"&&h(TabStats,{pacs:filPacs}),
