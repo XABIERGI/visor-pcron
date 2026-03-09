@@ -147,9 +147,10 @@ function initApp(){
   async function cargarPacs(onP){
     let all=[],off=0,more=true;
     while(more){
-      const {data,error}=await sb.from("PACIENTES").select(BASIC).range(off,off+BATCH-1);
+      const {data,error}=await sb.from("PACIENTES").select('*').range(off,off+BATCH-1);
       if(error||!data){console.error("Supabase error:",error);break;}
-      all=[...all,...data]; off+=BATCH;
+      const norm=data.map(r=>{const o={};Object.keys(r).forEach(k=>{o[k.toLowerCase()]=r[k];});return o;});
+      all=[...all,...norm]; off+=BATCH;
       onP(Math.min(97,Math.round(off/META.totalBD*100)));
       more=data.length===BATCH;
     }
@@ -158,7 +159,7 @@ function initApp(){
 
   async function cargarCrits(grupo,ids){
     const cols="id,"+grupo.keys.join(",");
-    const {data,error}=await sb.from("PACIENTES").select(cols).in("id",ids.slice(0,1000));
+    const {data,error}=await sb.from("PACIENTES").select('*').in("ID",ids.slice(0,1000));
     if(error||!data) return {};
     const map={};
     data.forEach(r=>{map[r.id]=r;});
