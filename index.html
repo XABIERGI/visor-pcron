@@ -8,21 +8,21 @@
 <link rel="preconnect" href="https://qbtdbnilmrvjmwoefwmw.supabase.co"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'IBM Plex Sans',system-ui,sans-serif;background:#F0F4F8;min-height:100vh;}
+body{font-family:system-ui,-apple-system,sans-serif;background:#F0F4F8;min-height:100vh;}
 input,button,select,textarea{font-family:inherit;}
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:#F1F5F9;}
 ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
-#boot{position:fixed;inset:0;background:linear-gradient(135deg,#060E1E,#0F2444);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;z-index:9999;transition:opacity .5s;}
+#boot{position:fixed;inset:0;background:linear-gradient(135deg,#060E1E,#0F2444);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;z-index:9999;}
 #boot-bar{width:300px;height:7px;background:rgba(255,255,255,0.1);border-radius:4px;margin-top:16px;overflow:hidden;}
 #boot-fill{height:100%;width:3%;background:linear-gradient(90deg,#3B82F6,#06B6D4);border-radius:4px;transition:width .3s;}
-.spinner{width:44px;height:44px;border:3px solid rgba(255,255,255,0.1);border-top-color:#3B82F6;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px;}
+.sp{width:44px;height:44px;border:3px solid rgba(255,255,255,0.1);border-top-color:#3B82F6;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px;}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 <div id="boot">
-  <div class="spinner"></div>
+  <div class="sp"></div>
   <div style="font-size:24px;font-weight:900;letter-spacing:1px">VISOR PCRON</div>
   <div style="font-size:12px;color:#475569;margin-top:4px">Osakidetza · cargando…</div>
   <div id="boot-bar"><div id="boot-fill"></div></div>
@@ -31,31 +31,36 @@ input,button,select,textarea{font-family:inherit;}
 <div id="root"></div>
 
 <script>
-const fill=document.getElementById('boot-fill');
-const msg=document.getElementById('boot-msg');
-function setBar(p,t){fill.style.width=p+'%';if(t)msg.textContent=t;}
+const _fill=document.getElementById('boot-fill');
+const _msg=document.getElementById('boot-msg');
+function setBar(p,t){_fill.style.width=p+'%';if(t)_msg.textContent=t;}
 function loadScript(src,cb){
   const s=document.createElement('script');
-  s.src=src;
-  s.onload=cb;
-  s.onerror=()=>{msg.textContent='Error cargando '+src;};
+  s.src=src; s.onload=cb;
+  s.onerror=()=>{_msg.style.color='#FCA5A5';_msg.textContent='Error: '+src;};
   document.head.appendChild(s);
 }
 setBar(5,'Cargando React…');
 loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',()=>{
-  setBar(25,'Cargando ReactDOM…');
+  setBar(22,'Cargando ReactDOM…');
   loadScript('https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',()=>{
-    setBar(45,'Cargando Supabase…');
+    setBar(40,'Cargando Supabase…');
     loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',()=>{
-      setBar(65,'Cargando Babel…');
+      setBar(60,'Cargando Babel…');
       loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
-        setBar(85,'Compilando app…');
+        setBar(80,'Compilando…');
         setTimeout(()=>{
-          const script=document.getElementById('app');
-          const code=Babel.transform(script.textContent,{presets:['react']}).code;
-          const s=document.createElement('script');
-          s.textContent=code;
-          document.head.appendChild(s);
+          try {
+            const src=document.getElementById('appjsx').textContent;
+            const compiled=Babel.transform(src,{presets:['react'],filename:'app.jsx'}).code;
+            const s=document.createElement('script');
+            s.textContent=compiled;
+            document.head.appendChild(s);
+          } catch(e) {
+            _msg.style.color='#FCA5A5';
+            _msg.textContent='Error Babel: '+e.message;
+            console.error(e);
+          }
         },50);
       });
     });
@@ -63,9 +68,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
 });
 </script>
 
-<script id="app" type="text/babel-raw">
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
-
+<script id="appjsx" type="text/babel-raw">
 // ════════════════════════════════════════════════════════════════════════════
 // ❶  CONFIGURACIÓN — CAMBIAR ANTES DE DESPLEGAR
 // ════════════════════════════════════════════════════════════════════════════
@@ -275,7 +278,7 @@ async function cargarCriteriosGrupo(grupo, ids) {
     .in("id", ids.slice(0,1000));
   if (error || !data) return {};
   const map = {};
-  data.forEach(row => { map[row.id] = row; });
+  data.forEach(row => { const nr={}; Object.keys(row).forEach(k=>{nr[k.toLowerCase()]=row[k];}); map[nr.id] = nr; });
   return map;
 }
 
@@ -1589,14 +1592,15 @@ const DEMO_PACIENTES=[
 ];
 
 
-// ── ARRANQUE ──────────────────────────────────────────────────────────────
-const boot = document.getElementById('boot');
-const fill = document.getElementById('boot-fill');
-fill.style.width = '100%';
+// ── ARRANQUE ──
+const _boot = document.getElementById('boot');
+document.getElementById('boot-fill').style.width = '100%';
+document.getElementById('boot-msg').textContent = 'Listo';
 setTimeout(() => {
-  boot.style.opacity = '0';
-  setTimeout(() => boot.style.display = 'none', 500);
-}, 300);
+  _boot.style.transition = 'opacity .4s';
+  _boot.style.opacity = '0';
+  setTimeout(() => { _boot.style.display = 'none'; }, 400);
+}, 200);
 
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
