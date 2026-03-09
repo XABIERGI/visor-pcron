@@ -37,7 +37,7 @@ function setBar(p,t){_fill.style.width=p+'%';if(t)_msg.textContent=t;}
 function loadScript(src,cb){
   const s=document.createElement('script');
   s.src=src; s.onload=cb;
-  s.onerror=()=>{_msg.style.color='#FCA5A5';_msg.textContent='Error: '+src;};
+  s.onerror=()=>{_msg.style.color='#FCA5A5';_msg.textContent='Error cargando libreria';};
   document.head.appendChild(s);
 }
 setBar(5,'Cargando React…');
@@ -48,7 +48,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
     loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',()=>{
       setBar(60,'Cargando Babel…');
       loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
-        setBar(80,'Compilando…');
+        setBar(80,'Compilando app…');
         setTimeout(()=>{
           try {
             const src=document.getElementById('appjsx').textContent;
@@ -59,7 +59,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
           } catch(e) {
             _msg.style.color='#FCA5A5';
             _msg.textContent='Error Babel: '+e.message;
-            console.error(e);
+            console.error('Babel error:',e);
           }
         },50);
       });
@@ -69,6 +69,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
 </script>
 
 <script id="appjsx" type="text/babel-raw">
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // ════════════════════════════════════════════════════════════════════════════
 // ❶  CONFIGURACIÓN — CAMBIAR ANTES DE DESPLEGAR
 // ════════════════════════════════════════════════════════════════════════════
@@ -1104,7 +1105,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
       {/* COLUMNA 1: DATOS BÁSICOS */}
       <div>
-        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📋 Datos Básicos <span style={{background:"#D1FAE5",color:"#065F46",padding:"1px 6px",borderRadius:3"}}>✅ Carga inicial</span></div>
+        <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📋 Datos Básicos <span style={{background:"#D1FAE5",color:"#065F46",padding:"1px 6px",borderRadius:3}}>✅ Carga inicial</span></div>
 
         <Seccion k="sexo" label="Sexo">
           <FBool campo="sexo" label="Sexo"/>
@@ -1591,17 +1592,14 @@ const DEMO_PACIENTES=[
   {id:"221100998",  cic:"100998",   sexo:"H",edad:79,osi:"01 OSID",centro:"PASAIA",      cupo:"20014",medico:"Dra. Oleaga",  bloque:"07 ZUBELZU",gip_ap:true, gip_hosp:true, gip_osarean:false,pob:"04 HF HOSPITALARIO",hfh:1,hfap:1,comorb:1,polimed:1,compl:9.6,co:3.0,fr:7.2,top_adec:54,audit_adec:47,audit_pend:["Ecocardiograma","Control INR","Plan de Crisis"]},
 ];
 
-
-// ── ARRANQUE ──
-const _boot = document.getElementById('boot');
-document.getElementById('boot-fill').style.width = '100%';
-document.getElementById('boot-msg').textContent = 'Listo';
-setTimeout(() => {
-  _boot.style.transition = 'opacity .4s';
-  _boot.style.opacity = '0';
-  setTimeout(() => { _boot.style.display = 'none'; }, 400);
-}, 200);
-
+const _boot=document.getElementById('boot');
+document.getElementById('boot-fill').style.width='100%';
+document.getElementById('boot-msg').textContent='Listo';
+setTimeout(()=>{
+  _boot.style.transition='opacity .4s';
+  _boot.style.opacity='0';
+  setTimeout(()=>{_boot.style.display='none';},400);
+},200);
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
 </body>
