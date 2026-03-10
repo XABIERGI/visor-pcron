@@ -440,6 +440,22 @@ const BASIC_COLS = [
 const pct  = (n,t) => t>0 ? ((n/t)*100).toFixed(1) : "0.0";
 const nFmt = n => Number(n).toLocaleString("es-ES");
 
+// ════════════════════════════════════════════════════════════════════════════
+// 🧪  DATOS DEMO — se usan cuando Supabase devuelve 0 registros
+// ════════════════════════════════════════════════════════════════════════════
+const DEMO_PACIENTES = [
+  {id:"D001",cic:"10000001",edad:78,sexo:"H",osi:"01 OSID",centro:"LASARTE",cupo:"20001",medico:"Dr. Demo A",bloque:"01 AGIRRE C",pob:"01 GERONTOLÓGICO",geron:true,pal:false,dep:false,hfh:false,hfap:false,comorb:false,sano:false,may85:false,demog:false,polimed:true,social:false,gip_ap:true,gip_hosp:false,gip_osarean:false,audit_color:"VERDE",audit_pend:[],_criterios:{}},
+  {id:"D002",cic:"10000002",edad:85,sexo:"M",osi:"01 OSID",centro:"HERNANI",cupo:"20002",medico:"Dra. Demo B",bloque:"02 VAQUERO",pob:"02 PALIATIVO",geron:false,pal:true,dep:false,hfh:true,hfap:false,comorb:true,sano:false,may85:true,demog:false,polimed:true,social:true,gip_ap:false,gip_hosp:true,gip_osarean:false,audit_color:"ROJO",audit_pend:["PAL","HFH"],_criterios:{}},
+  {id:"D003",cic:"10000003",edad:72,sexo:"M",osi:"02 OSIT",centro:"TOLOSA",cupo:"20003",medico:"Dr. Demo C",bloque:"03 HIGUERA",pob:"03 DEPENDIENTE DOMICILIO",geron:false,pal:false,dep:true,hfh:false,hfap:true,comorb:true,sano:false,may85:false,demog:false,polimed:false,social:true,gip_ap:true,gip_hosp:false,gip_osarean:true,audit_color:"AMARILLO",audit_pend:["DEP"],_criterios:{}},
+  {id:"D004",cic:"10000004",edad:91,sexo:"H",osi:"01 OSID",centro:"PASAIA",cupo:"20004",medico:"Dra. Demo D",bloque:"04 COUTO",pob:"08 MAYOR 85 SANO",geron:true,pal:false,dep:false,hfh:false,hfap:false,comorb:false,sano:false,may85:true,demog:false,polimed:false,social:false,gip_ap:false,gip_hosp:false,gip_osarean:false,audit_color:"VERDE",audit_pend:[],_criterios:{}},
+  {id:"D005",cic:"10000005",edad:68,sexo:"M",osi:"02 OSIT",centro:"EIBAR",cupo:"20005",medico:"Dr. Demo E",bloque:"05 SANCHEZ",pob:"06 MAYOR COMORBILIDAD",geron:false,pal:false,dep:false,hfh:true,hfap:true,comorb:true,sano:false,may85:false,demog:false,polimed:true,social:false,gip_ap:false,gip_hosp:true,gip_osarean:false,audit_color:"NARANJA",audit_pend:["COMORB"],_criterios:{}},
+  {id:"D006",cic:"10000006",edad:55,sexo:"H",osi:"01 OSID",centro:"ANDOAIN",cupo:"20006",medico:"Dra. Demo F",bloque:"06 SANZ",pob:"09 DEMOGRÁFICOS",geron:false,pal:false,dep:false,hfh:false,hfap:false,comorb:false,sano:false,may85:false,demog:true,polimed:false,social:true,gip_ap:false,gip_hosp:false,gip_osarean:false,audit_color:"VERDE",audit_pend:[],_criterios:{}},
+  {id:"D007",cic:"10000007",edad:80,sexo:"M",osi:"01 OSID",centro:"AZPEITIA",cupo:"20007",medico:"Dr. Demo G",bloque:"07 ZUBELZU",pob:"07 MAYOR SANO",geron:false,pal:false,dep:false,hfh:false,hfap:false,comorb:false,sano:true,may85:false,demog:false,polimed:false,social:false,gip_ap:false,gip_hosp:false,gip_osarean:false,audit_color:"VERDE",audit_pend:[],_criterios:{}},
+  {id:"D008",cic:"10000008",edad:76,sexo:"H",osi:"02 OSIT",centro:"ZARAUTZ",cupo:"20008",medico:"Dra. Demo H",bloque:"01 AGIRRE C",pob:"04 HF HOSPITALARIO",geron:false,pal:false,dep:false,hfh:true,hfap:false,comorb:true,sano:false,may85:false,demog:false,polimed:true,social:false,gip_ap:false,gip_hosp:true,gip_osarean:false,audit_color:"ROJO",audit_pend:["HFH","COMORB"],_criterios:{}},
+  {id:"D009",cic:"10000009",edad:63,sexo:"M",osi:"01 OSID",centro:"ERRENTERIA",cupo:"20009",medico:"Dr. Demo I",bloque:"02 VAQUERO",pob:"05 HF AP",geron:false,pal:false,dep:false,hfh:false,hfap:true,comorb:false,sano:false,may85:false,demog:false,polimed:false,social:false,gip_ap:true,gip_hosp:false,gip_osarean:false,audit_color:"AMARILLO",audit_pend:["HFAP"],_criterios:{}},
+  {id:"D010",cic:"10000010",edad:88,sexo:"H",osi:"02 OSIT",centro:"TOLOSA",cupo:"20010",medico:"Dra. Demo J",bloque:"03 HIGUERA",pob:"01 GERONTOLÓGICO",geron:true,pal:false,dep:true,hfh:false,hfap:false,comorb:true,sano:false,may85:true,demog:false,polimed:true,social:true,gip_ap:false,gip_hosp:false,gip_osarean:true,audit_color:"NARANJA",audit_pend:["GER","DEP"],_criterios:{}},
+];
+
 function applyFiltros(pacs, filtros) {
   return pacs.filter(p => {
     return filtros.every(f => {
