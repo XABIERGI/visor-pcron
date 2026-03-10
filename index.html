@@ -1549,6 +1549,31 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
   const remove = id => setFiltros(p=>p.filter(x=>x.id!==id));
   const updateLogica = (id,l) => setFiltros(p=>p.map(f=>f.id===id?{...f,logica:l}:f));
 
+  // CheckGroup local — accede a filtros/add/setFiltros por closure
+  const CheckGroup = ({campo, opciones, colorFn, labelFn}) => (
+    <div>
+      {(opciones||[]).map(op=>{
+        const val = typeof op==="object"?op.value:op;
+        const lbl = labelFn?labelFn(op):(typeof op==="object"?op.label:String(op));
+        const on  = filtros.some(f=>f.campo===campo&&f.valor===val);
+        const col = colorFn?colorFn(op):null;
+        return (
+          <label key={val} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",
+            padding:"3px 6px",borderRadius:5,marginBottom:1,
+            background:on?"#EFF6FF":"transparent",
+            border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
+            <input type="checkbox" checked={on}
+              onChange={e=>{
+                if(e.target.checked) add({campo,label:`${campo} = ${lbl}`,tipo:"select",valor:val});
+                else setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===val)));
+              }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+            <span style={{fontSize:11,color:on?"#1D4ED8":col||"#374151",fontWeight:on?700:400}}>{lbl}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+
   // ── FILTROS ENCADENADOS: opciones disponibles según contexto actual ──
   // Para cada campo, calculamos las opciones que tienen pacientes en el
   // resultado de aplicar TODOS los filtros excepto los del propio campo
@@ -3159,25 +3184,20 @@ function App() {
             <div style={{color:"#64748B",fontSize:10}}>Paciente Crónico · Osakidetza · {META.version}</div>
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
           {pacientes.length===DEMO_PACIENTES.length&&pacientes[0]?.id===DEMO_PACIENTES[0]?.id&&(
             <div style={{background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:5,padding:"3px 10px",fontSize:10,color:"#92400E",fontWeight:700}}>
-              ⚠️ MODO DEMO — Configura SUPABASE_URL
+              ⚠️ MODO DEMO
             </div>
           )}
-          <select value={role} onChange={e=>setRole(e.target.value)} style={{fontSize:10,background:"rgba(255,255,255,0.1)",color:"#CBD5E1",border:"1px solid rgba(255,255,255,0.2)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>
-            {Object.entries(ROLES_DEF).map(([k,v])=><option key={k} value={k} style={{background:"#0F2444"}}>{v.label}</option>)}
-          </select>
-          <div style={{borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:10,display:"flex",alignItems:"center",gap:8}}>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
-              <div style={{fontSize:9,color:"#93C5FD"}}>{authUser?.rol}</div>
-            </div>
-            <button onClick={handleLogout}
-              style={{padding:"4px 10px",fontSize:10,fontWeight:700,background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:5,color:"#FCA5A5",cursor:"pointer"}}>
-              ⏻ Salir
-            </button>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
+            <div style={{fontSize:9,color:"#93C5FD",fontWeight:600}}>{authUser?.rol} · {authUser?.email}</div>
           </div>
+          <button onClick={handleLogout}
+            style={{padding:"5px 12px",fontSize:11,fontWeight:700,background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:6,color:"#FCA5A5",cursor:"pointer"}}>
+            ⏻ Salir
+          </button>
         </div>
       </div>
 
