@@ -325,14 +325,91 @@ const CRITERIOS_PERFIL = {
 
 // Grupos de criterios para carga lazy — columnas reales Supabase (fuente: VISOR_PCRON_Indice.xlsx)
 const GRUPOS_CRITERIOS = [
-  {id:"PPP",         label:"PPP / Alertas",       keys:["crit_ppp","crit_fragil","crit_episodio_pal","crit_ppp_estadio_pal","crit_episodio_ppp"]},
-  {id:"DEPENDENCIA", label:"Dependencia / Barthel",keys:["crit_barthel_base","crit_barthel_actual","crit_demencia","crit_caidas","crit_episodio_dom","crit_alerta_dom","crit_institucionalizado"]},
-  {id:"HFH",         label:"HF Hospitalario",      keys:["crit_reingresos","crit_urg_n","crit_ic","crit_epoc","crit_estancia","crit_hd","crit_ingresos","crit_ingreso_dia"]},
-  {id:"SEGUIM_AP",   label:"Seguimiento AP",       keys:["crit_frec_ap_med","crit_frec_ap_enf","crit_cons_enf_ap","crit_cons_med_ap","crit_citas_ap","crit_domicilios_ap","crit_cnp_otras"]},
-  {id:"COMORBILIDAD",label:"Comorbilidad",          keys:["crit_i_renal","crit_hepatopatia","crit_anemia","crit_pluripatologico","crit_ulceras","crit_medico_pcron"]},
-  {id:"PALIATIVO",   label:"Paliativo / Formularios",keys:["crit_necpal","crit_frag_vig","crit_plan_cuidados","crit_pia_pal","crit_pia_basal","crit_ppp_basal","crit_ppp_evol_n","crit_ppp_evol_ogp","crit_pam","crit_pam_mayor_sano"]},
-  {id:"PCRON_HOSP",  label:"Seguim. PCRON Hosp.",  keys:["crit_cons_enf_pcron","crit_cons_med_pcron"]},
-  {id:"FARMACOS",    label:"Polimedicación",        keys:["crit_farmacos"]},
+  {id:"PPP", label:"PPP / Alertas", items:[
+    {k:"02-01-10-01",l:"Gestión ENF (S/N)"},
+    {k:"02-01-10-02",l:"Gestión Caso (S/N)"},
+    {k:"02-01-10-03",l:"Índice Predictivo"},
+    {k:"02-01-12-01",l:"Marca OAS (S/N)"},
+    {k:"02-01-12-03",l:"Marca OAS — Año"},
+    {k:"02-01-12-04",l:"Marca OAS — Antigüedad"},
+    {k:"02-01-12-05",l:"Marca OAS — Ámbito"},
+    {k:"02-01-13-01",l:"Episodio PPP"},
+    {k:"02-01-14-01",l:"Alerta Frágil (S/N)"},
+    {k:"02-01-14-03",l:"Alerta Frágil — Año"},
+    {k:"02-01-14-04",l:"Alerta Frágil — Usuario"},
+    {k:"02-01-14-06",l:"Alerta Pluripatológico (S/N)"},
+    {k:"02-01-14-08",l:"Alerta Pluri — Año"},
+    {k:"02-01-15-01",l:"Form. PPP Basal — Estadio"},
+    {k:"02-01-15-02",l:"Form. PPP Basal — Seg."},
+    {k:"02-01-15-03",l:"Form. PPP Basal — Año"},
+    {k:"02-01-15-04",l:"Form. PAM — Año"},
+    {k:"02-01-15-05",l:"Form. PAM — Tipología"},
+    {k:"02-01-17-05",l:"Polimedicación ≥ 7"},
+  ]},
+  {id:"GERONTOLOGICO", label:"Gerontológico", items:[
+    {k:"02-02-12-01",l:"Marca OGP (S/N)"},
+    {k:"02-02-14-01",l:"Alerta Institucionalizado"},
+    {k:"02-02-16-01",l:"Año Ingreso Gerontológico"},
+    {k:"02-02-16-02",l:"Centro Gerontológico"},
+  ]},
+  {id:"COMORBILIDAD", label:"Comorbilidad", items:[
+    {k:"02-03-00-01",l:"IC Total (app calculado)"},
+    {k:"02-03-00-02",l:"EPOC Total (app calculado)"},
+    {k:"02-03-13-01",l:"IC — Episodio"},
+    {k:"02-03-13-02",l:"EPOC — Episodio"},
+    {k:"02-03-13-03",l:"Insuf. Renal — Episodio"},
+    {k:"02-03-13-04",l:"Hepatopatía — Episodio"},
+    {k:"02-03-13-05",l:"Anemia / SMD — Episodio"},
+    {k:"02-03-13-06",l:"Pluripatológico — Episodio"},
+    {k:"02-03-13-07",l:"Úlceras / Curas — Episodio"},
+    {k:"02-03-14-01",l:"EPOC — Alerta"},
+    {k:"02-03-14-02",l:"IC — Alerta"},
+  ]},
+  {id:"DEPENDENCIA", label:"Dependencia / Barthel", items:[
+    {k:"02-05-00-01",l:"Barthel Actual — Último resultado"},
+    {k:"02-05-00-02",l:"Barthel Basal — Último resultado"},
+    {k:"02-05-13-01",l:"Episodio Crónico Domiciliario"},
+    {k:"02-05-13-02",l:"Demencia — Episodio"},
+    {k:"02-05-14-01",l:"Alerta Crónico Domiciliario"},
+  ]},
+  {id:"PALIATIVO", label:"Paliativo / Formularios", items:[
+    {k:"02-04-13-01",l:"Episodio Paliativo"},
+    {k:"02-04-14-01",l:"Alerta Paliativo"},
+    {k:"02-04-15-01",l:"Form. PIA Paliativo"},
+    {k:"02-04-15-02",l:"Frágil-Vig — Último valor"},
+    {k:"02-04-15-04",l:"NECPAL — Resultado positivo"},
+    {k:"02-04-15-05",l:"Frágil-Vig > 0,48"},
+  ]},
+  {id:"HFAP", label:"HF Atención Primaria", items:[
+    {k:"02-06-06-01",l:"Frec. AP Médica"},
+    {k:"02-06-06-02",l:"Frec. AP Enfermería"},
+  ]},
+  {id:"FRECHOSP", label:"HF Hospitalario / Urgencias", items:[
+    {k:"02-07-03-01",l:"Frec. CCEE PCRON > 6"},
+    {k:"02-07-03-02",l:"Frec. H. de Día PCRON"},
+    {k:"02-07-07-01",l:"Reingresos hospitalarios"},
+    {k:"02-07-07-02",l:"N ingresos MI"},
+    {k:"02-07-07-03",l:"N ingresos Otras"},
+    {k:"02-07-07-04",l:"Estancias (2 ingresos)"},
+    {k:"02-07-07-05",l:"HaD"},
+    {k:"02-07-07-06",l:"Convalecencia"},
+    {k:"02-07-07-07",l:"Ingreso MI > 10 días"},
+    {k:"02-07-07-08",l:"> 2 ing. Médicos"},
+    {k:"02-08-08-01",l:"Urgencias año N"},
+  ]},
+  {id:"SOCIAL", label:"Carga Social", items:[
+    {k:"02-09-01-01",l:"CNP desde CCEE a UGS"},
+    {k:"02-09-02-02",l:"IC desde Hosp. a UGS"},
+    {k:"02-09-11-01",l:"Osanaia Cuidados"},
+    {k:"02-09-15-01",l:"Form. Basal — Usuario SS"},
+    {k:"02-09-15-02",l:"Form. Basal — Cuidador"},
+    {k:"02-09-15-03",l:"Form. Basal — Apoyo"},
+    {k:"02-09-15-04",l:"Form. Basal — Vivienda"},
+    {k:"02-09-15-05",l:"Form. Basal — Rec. Actual"},
+    {k:"02-09-15-06",l:"Form. Basal — Pronós. SS"},
+    {k:"02-09-16-01",l:"Nivel Socioeconómico"},
+    {k:"02-09-16-02",l:"Código Postal"},
+  ]},
 ];
 
 const OSI_STATS = {top_media:68,top_p75:82,audit_media:64,audit_p75:79};
@@ -481,7 +558,7 @@ function mapearPaciente(r) {
     cupo:   r.codigo_cupo,
 
     // ── EQUIPO REFERENCIA (en criterios por código) ──
-    medico:      getC(crit,'04-13-03-3') || getC(crit,'04-13-03-02') || '',
+    medico:      getC(crit,'04-13-03-03') || '',
     bloque:      getC(crit,'04-13-03-02') || '',
     gip_ap:      esSi(getC(crit,'04-12-05-02')),
     gip_hosp:    esSi(getC(crit,'04-13-09-01')),
@@ -1392,15 +1469,11 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
   const remove = id => setFiltros(p=>p.filter(x=>x.id!==id));
   const updateLogica = (id,l) => setFiltros(p=>p.map(f=>f.id===id?{...f,logica:l}:f));
 
-  // Centros filtrados por OSI seleccionada
+  // Centros filtrados por OSI seleccionada en el checkbox de OSI
   const centrosDisp = useMemo(()=>{
     const todos = [...new Set(pacientes.map(p=>p.centro).filter(Boolean))].sort();
     if (osiSel.length===0) return todos;
-    const osiMap = {"01 OSID":"DONOSTIALDEA","02 OSIT":"TOLOSALDEA"};
-    return todos.filter(c=>{
-      const pacs = pacientes.filter(p=>p.centro===c);
-      return pacs.some(p=>osiSel.includes(p.osi));
-    });
+    return todos.filter(c=>pacientes.some(p=>p.centro===c&&osiSel.includes(p.osi)));
   },[pacientes,osiSel]);
 
   const centrosFiltrados = centroTxt
@@ -1644,24 +1717,31 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* OSI */}
           <Seccion k="osi" label="OSI" defaultOpen>
-            <CheckGroup campo="osi" opciones={["01 OSID","02 OSIT","03 RESTO OSI"]}
-              colorFn={o=>o==="01 OSID"?"#1D4ED8":o==="02 OSIT"?"#059669":"#64748B"}/>
-            {/* Botones para marcar la OSI seleccionada para filtrar centros */}
-            <div style={{marginTop:6,fontSize:9,color:"#94A3B8"}}>
-              Seleccionar OSI para filtrar centros:
-              <div style={{display:"flex",gap:4,marginTop:3}}>
-                {["01 OSID","02 OSIT","03 RESTO OSI"].map(o=>(
-                  <button key={o} onClick={()=>setOsiSel(p=>p.includes(o)?p.filter(x=>x!==o):[...p,o])}
-                    style={{padding:"2px 6px",fontSize:8,border:`1px solid ${osiSel.includes(o)?"#3B82F6":"#E2E8F0"}`,borderRadius:4,background:osiSel.includes(o)?"#EFF6FF":"white",color:osiSel.includes(o)?"#1D4ED8":"#94A3B8",cursor:"pointer"}}>
-                    {o}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {["01 OSID","02 OSIT","03 RESTO OSI"].map(o=>{
+              const col=o==="01 OSID"?"#1D4ED8":o==="02 OSIT"?"#059669":"#64748B";
+              const yaFiltrado=filtros.some(f=>f.campo==="osi"&&f.valor===o);
+              const enOsiSel=osiSel.includes(o);
+              return (
+                <label key={o} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 6px",borderRadius:5,
+                  background:yaFiltrado?"#EFF6FF":"transparent",border:yaFiltrado?"1px solid #BFDBFE":"1px solid transparent"}}>
+                  <input type="checkbox" checked={yaFiltrado}
+                    onChange={e=>{
+                      if(e.target.checked){
+                        add({campo:"osi",label:`OSI = ${o}`,tipo:"select",valor:o});
+                        setOsiSel(p=>[...p,o]);
+                      } else {
+                        setFiltros(p=>p.filter(f=>!(f.campo==="osi"&&f.valor===o)));
+                        setOsiSel(p=>p.filter(x=>x!==o));
+                      }
+                    }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+                  <span style={{fontSize:11,color:yaFiltrado?"#1D4ED8":col,fontWeight:yaFiltrado?700:400}}>{o}</span>
+                </label>
+              );
+            })}
           </Seccion>
 
-          {/* CENTROS */}
-          <Seccion k="centro" label={`Centro de Salud ${osiSel.length>0?"(filtrado por OSI)":""}`} defaultOpen>
+                    {/* CENTROS */}
+          <Seccion k="centro" label="Centro de Salud" defaultOpen>
             <input value={centroTxt} onChange={e=>setCentroTxt(e.target.value)}
               placeholder="Buscar centro…"
               style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
@@ -1831,17 +1911,17 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                     </button>
                   </div>
                 ) : (
-                  g.keys.map(k=>{
+                  (g.items||[]).map(({k,l})=>{
                     const on=filtros.some(f=>f.campo===k&&f.valor===true);
                     return (
                       <label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 5px",borderRadius:4,marginBottom:2,
                         background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
                         <input type="checkbox" checked={on}
                           onChange={e=>{
-                            if(e.target.checked) add({campo:k,label:k.replace(/crit_/g,"").replace(/_/g," "),tipo:"bool",valor:true});
+                            if(e.target.checked) add({campo:k,label:l,tipo:"crit_bool",valor:true});
                             else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.valor===true)));
                           }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                        <span style={{fontSize:10,color:on?"#1D4ED8":"#475569",fontWeight:on?700:400}}>{k.replace(/crit_/g,"").replace(/_/g," ")}</span>
+                        <span style={{fontSize:10,color:on?"#1D4ED8":"#475569",fontWeight:on?700:400}}>{l}</span>
                       </label>
                     );
                   })
