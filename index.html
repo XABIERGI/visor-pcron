@@ -3410,6 +3410,12 @@ function App() {
     </div>
   );
 }
+
+// ── MONTAR APP ────────────────────────────────────────────────────────────
+const _root = document.getElementById('root');
+ReactDOM.createRoot(_root).render(<App/>);
+document.getElementById('boot').style.display='none';
+_root.style.display='block';
 </script>
 </body>
 </html>
