@@ -1881,6 +1881,27 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             <CheckGroup campo="bloque" opciones={bloquesDisp.length>0?bloquesDisp:BLOQUES_PCRON}/>
           </Seccion>
 
+          {/* CENTRO GERONTOLÓGICO */}
+          <Seccion k="centro_ger" label="Centro Gerontológico">
+            <div style={{maxHeight:140,overflowY:"auto"}}>
+              {[...new Set(pacsSinCampo("centro_ger").map(p=>p.centro_ger).filter(Boolean))].sort().map(cg=>{
+                const on=filtros.some(f=>f.campo==="centro_ger"&&f.valor===cg);
+                return (
+                  <label key={cg} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",
+                    padding:"3px 6px",borderRadius:5,marginBottom:1,
+                    background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
+                    <input type="checkbox" checked={on}
+                      onChange={e=>{
+                        if(e.target.checked) add({campo:"centro_ger",label:`Centro Ger = ${cg}`,tipo:"select",valor:cg});
+                        else setFiltros(p=>p.filter(f=>!(f.campo==="centro_ger"&&f.valor===cg)));
+                      }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+                    <span style={{fontSize:11,color:on?"#1D4ED8":"#374151",fontWeight:on?700:400}}>{cg}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </Seccion>
+
           {/* GIP */}
           <Seccion k="gip" label="Programas GIP">
             {[["gip_ap","GIP AP"],["gip_hosp","GIP PCRON Hosp."],["gip_osarean","GIP OSAREAN"]].map(([campo,label])=>(
@@ -1926,27 +1947,6 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                 </label>
               );
             })}
-          </Seccion>
-
-          {/* CENTRO GERONTOLÓGICO */}
-          <Seccion k="centro_ger" label="Centro Gerontológico">
-            <div style={{maxHeight:140,overflowY:"auto"}}>
-              {[...new Set(pacsSinCampo("centro_ger").map(p=>p.centro_ger).filter(Boolean))].sort().map(cg=>{
-                const on=filtros.some(f=>f.campo==="centro_ger"&&f.valor===cg);
-                return (
-                  <label key={cg} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",
-                    padding:"3px 6px",borderRadius:5,marginBottom:1,
-                    background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
-                    <input type="checkbox" checked={on}
-                      onChange={e=>{
-                        if(e.target.checked) add({campo:"centro_ger",label:`Centro Ger = ${cg}`,tipo:"select",valor:cg});
-                        else setFiltros(p=>p.filter(f=>!(f.campo==="centro_ger"&&f.valor===cg)));
-                      }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                    <span style={{fontSize:11,color:on?"#1D4ED8":"#374151",fontWeight:on?700:400}}>{cg}</span>
-                  </label>
-                );
-              })}
-            </div>
           </Seccion>
 
           {/* ÍNDICES */}
