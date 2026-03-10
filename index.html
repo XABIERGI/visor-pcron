@@ -75,7 +75,10 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // ════════════════════════════════════════════════════════════════════════════
 const SUPABASE_URL   = "https://qbtdbnilmrvjmwoefwmw.supabase.co";
 const SUPABASE_ANON  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidGRibmlsbXJ2am13b2Vmd213Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTIwNzcsImV4cCI6MjA4MzUyODA3N30.u_h9Qzk40ml_hWNIW00bGKSrCG4Y9SeUyAGllUGITic";
-const GDRIVE_FOLDER  = "1u5yWwAqujqtR7ts9npVyAQyfMk63_lwD";  // ETL mensual Drive → Supabase
+const GDRIVE_FOLDER       = "1u5yWwAqujqtR7ts9npVyAQyfMk63_lwD";  // Carpeta VISOR PCRON en Drive
+const GDRIVE_TABLAS = "https://drive.google.com/drive/folders/1u5yWwAqujqtR7ts9npVyAQyfMk63_lwD";
+const GDRIVE_DOCS   = "https://drive.google.com/drive/folders/1u5yWwAqujqtR7ts9npVyAQyfMk63_lwD";
+const COLAB_URL     = "https://colab.research.google.com/drive/";  // Se abre Drive para buscar el .ipynb
 
 // ── Supabase client ───────────────────────────────────────────────────────
 // Vite/CRA/Next.js: sustituye por: import { createClient } from '@supabase/supabase-js'
@@ -415,6 +418,15 @@ const GRUPOS_CRITERIOS = [
 const OSI_STATS = {top_media:68,top_p75:82,audit_media:64,audit_p75:79};
 
 const BLOQUES_PCRON = ["01 AGIRRE C","02 VAQUERO","03 HIGUERA","04 COUTO","05 SANCHEZ","06 SANZ","07 ZUBELZU"];
+const BLOQUE_CENTROS = {
+  "01 AGIRRE C": ["DUMBOA","HONDARRIBIA","IRUN-CENTRO","DEBA","EIBAR","ELGOIBAR","ERMUA","ITZIAR","MENDARO","MUTRIKU","SORALUZE-PLACENCIA","TORREKUA","ANTZUOLA","ARAMAIO","ARETXABALETA","ARRASATE","BERGARA","ELGETA","ESKORIATZA","ONATI","LOIOLA","PASAI ANTXO","INTXAURRONDO"],
+  "02 VAQUERO":  ["ONDARRETA","IZTIETA-ERRENTERIA","OIARTZUN","ZUMAIA","GETARIA","AIZARNAZABAL","ZESTOA"],
+  "03 HIGUERA":  ["GROS","AMARA CENTRO","AMARA BERRI","PARTE VIEJA","EGIA"],
+  "04 COUTO":    ["LASARTE","USURBIL","BIDEBIETA","AIETE","ALZA-ROTETA"],
+  "05 SANCHEZ":  ["ASTIGARRAGA","HERNANI","URNIETA"],
+  "06 SANZ":     ["PASAJES SAN PEDRO"],
+  "07 ZUBELZU":  ["ALEGIA","AMAROZ","AMEZKETA-ABALTZISKETA","ANDOAIN","ANOETA","ASTEASU","BELAUNTZA","BERASTEGI","BIDEGOYAN","BILLABONA","IBARRA","IRURA","LEGORRETA","LIZARTZA","TOLOSA C.S.","TXARAMA","BERAUN-ERRENTERIA","ZARAUTZ","ORIO","AIA","LEZO","PASAI DONIBANE"],
+};
 const CENTROS_ALL   = ["AIZARNAZABAL","LASARTE","HERNANI","ERRENTERIA","PASAIA","TOLOSA","EIBAR","ANDOAIN","AZPEITIA","ZARAUTZ"];
 const CUPOS_ALL     = ["25940","20187","20056","20100","20014","31001","20099","20015","20016","20017"];
 
@@ -458,17 +470,32 @@ const DEMO_PACIENTES = [
 
 function applyFiltros(pacs, filtros) {
   return pacs.filter(p => {
-    return filtros.every(f => {
+    const results = filtros.map(f => {
       let match = false;
-      if (f.tipo==="bool")       match = f.valor ? Boolean(p[f.campo]) : !p[f.campo];
-      else if (f.tipo==="select")match = p[f.campo]===f.valor;
-      else if (f.tipo==="range") match = (p[f.campo]||0)>=f.min && (p[f.campo]||0)<=f.max;
-      else if (f.tipo==="texto") match = String(p[f.campo]||"").toLowerCase().includes(f.valor.toLowerCase());
-      else if (f.tipo==="lista") match = Array.isArray(f.valor) && f.valor.includes(p[f.campo]);
+      if (f.tipo==="bool")        match = f.valor ? Boolean(p[f.campo]) : !p[f.campo];
+      else if (f.tipo==="select") {
+        if (f.campo==="bloque") {
+          // Bloque filter: match by bloque field OR by centro belonging to bloque
+          const centrosBloque = (BLOQUE_CENTROS[f.valor]||[]).map(c=>c.toUpperCase());
+          match = p.bloque===f.valor || centrosBloque.includes((p.centro||"").toUpperCase());
+        } else {
+          match = p[f.campo]===f.valor;
+        }
+      }
+      else if (f.tipo==="range")    match = (p[f.campo]||0)>=f.min && (p[f.campo]||0)<=f.max;
+      else if (f.tipo==="texto")    match = String(p[f.campo]||"").toLowerCase().includes(f.valor.toLowerCase());
+      else if (f.tipo==="lista")    match = Array.isArray(f.valor) && f.valor.includes(String(p[f.campo]||""));
       else if (f.tipo==="bool_pend") match = f.valor ? (p.audit_pend||[]).length>0 : (p.audit_pend||[]).length===0;
       else if (f.tipo==="pend_item") match = (p.audit_pend||[]).includes(f.valor);
-      return f.logica==="NO" ? !match : f.logica==="O" ? match : match; // O se acumula como OR pero simplificado aquí como AND
+      else if (f.tipo==="crit_bool") match = f.valor ? Boolean(getC(p._criterios||{},f.campo)) : !getC(p._criterios||{},f.campo);
+      return f.logica==="NO" ? !match : match;
     });
+    // Y = todos, O = alguno
+    const yFiltros = filtros.filter((_,i)=>filtros[i].logica!=="O");
+    const oFiltros = filtros.filter((_,i)=>filtros[i].logica==="O");
+    const yOk = yFiltros.every((_,i)=>results[filtros.indexOf(yFiltros[i])]);
+    const oOk = oFiltros.length===0 || oFiltros.some((_,i)=>results[filtros.indexOf(oFiltros[i])]);
+    return yOk && oOk;
   });
 }
 
@@ -576,6 +603,7 @@ function mapearPaciente(r) {
     // ── EQUIPO REFERENCIA (en criterios por código) ──
     medico:      getC(crit,'04-13-03-03') || '',
     bloque:      getC(crit,'04-13-03-02') || '',
+    centro_ger:  getC(crit,'02-02-16-02') || '',
     gip_ap:      esSi(getC(crit,'04-12-05-02')),
     gip_hosp:    esSi(getC(crit,'04-13-09-01')),
     gip_osarean: esSi(getC(crit,'04-15-09-01')),
@@ -622,14 +650,16 @@ function mapearPaciente(r) {
 async function cargarCriteriosGrupo(grupo, ids) {
   const sb = await getSupabase();
   if (!sb) return {};
-  const keys = grupo.keys.join(",");
+  // grupo.items = [{k,l}] — solo necesitamos cargar criterios de esos pacientes
   const {data, error} = await sb
     .from("PACIENTES")
-    .select('*')
-    .in("id", ids.slice(0,1000));
-  if (error || !data) return {};
+    .select("id_paciente,criterios")
+    .in("id_paciente", ids.slice(0,1000));
+  if (error || !data) { console.error("cargarCriteriosGrupo error:", error); return {}; }
   const map = {};
-  data.forEach(row => { const nr={}; Object.keys(row).forEach(k=>{nr[k.toLowerCase()]=row[k];}); map[nr.id] = nr; });
+  data.forEach(row => {
+    map[row.id_paciente] = row.criterios || {};
+  });
   return map;
 }
 
@@ -1896,6 +1926,27 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             })}
           </Seccion>
 
+          {/* CENTRO GERONTOLÓGICO */}
+          <Seccion k="centro_ger" label="Centro Gerontológico">
+            <div style={{maxHeight:140,overflowY:"auto"}}>
+              {[...new Set(pacsSinCampo("centro_ger").map(p=>p.centro_ger).filter(Boolean))].sort().map(cg=>{
+                const on=filtros.some(f=>f.campo==="centro_ger"&&f.valor===cg);
+                return (
+                  <label key={cg} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",
+                    padding:"3px 6px",borderRadius:5,marginBottom:1,
+                    background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
+                    <input type="checkbox" checked={on}
+                      onChange={e=>{
+                        if(e.target.checked) add({campo:"centro_ger",label:`Centro Ger = ${cg}`,tipo:"select",valor:cg});
+                        else setFiltros(p=>p.filter(f=>!(f.campo==="centro_ger"&&f.valor===cg)));
+                      }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+                    <span style={{fontSize:11,color:on?"#1D4ED8":"#374151",fontWeight:on?700:400}}>{cg}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </Seccion>
+
           {/* ÍNDICES */}
           <Seccion k="indices" label="Índices de Complejidad">
             {[
@@ -2440,26 +2491,20 @@ function TabAdministracion({pacientes}) {
 
   // Crear nuevo usuario (invitar por email)
   const invitarUsuario=async()=>{
+    if(!newUser.nombre||!newUser.email){setInvMsg("❌ Nombre y email son obligatorios");return;}
     setInvitando(true); setInvMsg("");
     try {
       const sb=await getSupabase();
-      // Crear en tabla usuarios_visor (el login lo gestiona Supabase Auth)
-      const tempPass="Pcron2026!"+Math.floor(Math.random()*9000+1000);
-      const {error:authErr}=await sb.auth.admin?.createUser?.({
-        email:newUser.email, password:tempPass, email_confirm:true
-      }) || {};
-      // Si no hay admin API, insertamos en tabla y el usuario usa "Forgot password"
       const {error}=await sb.from("usuarios_visor").insert({
         email:newUser.email, nombre:newUser.nombre, rol:newUser.rol,
         centros:newUser.centros||[], cupos:newUser.cupos||[], activo:true, primer_login:true
       });
       if(error) throw error;
-      // Recargar lista
       const {data}=await sb.from("usuarios_visor").select("*").order("created_at");
       setUsuarios(data||[]);
       setShowNewUser(false);
       setNewUser({nombre:"",email:"",rol:"PROFESIONAL",centros:[],cupos:[],activo:true});
-      setInvMsg("✅ Usuario creado. Debe usar 'Olvidé mi contraseña' en el visor con su email.");
+      setInvMsg("✅ Usuario creado. El usuario debe crearse una contraseña en Supabase Authentication.");
     } catch(e){ setInvMsg("❌ "+e.message); }
     setInvitando(false);
   };
@@ -2728,19 +2773,28 @@ function TabAdministracion({pacientes}) {
             <div style={{fontSize:16,fontWeight:800,color:"#0F2444",marginBottom:4}}>🔄 Recarga Drive → Supabase</div>
             <div style={{fontSize:12,color:"#64748B",marginBottom:16}}>Proceso ETL mensual automatizado. Carpeta Drive: {GDRIVE_FOLDER}</div>
 
-            {/* Estado de conexiones */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
-              {[
-                {l:"Google Drive",    s:"Conectado",   c:"#059669", icon:"🟢", sub:"Carpeta ETL accesible"},
-                {l:"Supabase DB",     s:"Conectado",   c:"#059669", icon:"🟢", sub:"97.525 registros activos"},
-                {l:"Próx. ejecución", s:"01/04/2026",  c:"#0891B2", icon:"🕐", sub:"Automático · 08:00h"},
-              ].map(x=>(
-                <div key={x.l} style={{padding:"12px 14px",border:`1px solid ${x.c}30`,background:x.c+"08",borderRadius:9}}>
-                  <div style={{fontSize:10,color:"#94A3B8",fontWeight:700,marginBottom:2}}>{x.icon} {x.l}</div>
-                  <div style={{fontSize:14,fontWeight:700,color:x.c}}>{x.s}</div>
-                  <div style={{fontSize:10,color:"#94A3B8"}}>{x.sub}</div>
-                </div>
-              ))}
+            {/* Accesos directos Drive */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+              <a href={GDRIVE_TABLAS} target="_blank" rel="noopener noreferrer"
+                style={{padding:"14px 16px",border:"1px solid #BFDBFE",background:"#EFF6FF",borderRadius:9,textDecoration:"none",display:"block"}}>
+                <div style={{fontSize:10,color:"#94A3B8",fontWeight:700,marginBottom:2}}>📁 CARPETA DRIVE</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#1D4ED8"}}>Abrir VISOR PCRON en Drive</div>
+                <div style={{fontSize:10,color:"#64748B",marginTop:2}}>TABLAS_BASE · DOCUMENTOS APOYO · Colab</div>
+              </a>
+              <a href="https://colab.research.google.com" target="_blank" rel="noopener noreferrer"
+                style={{padding:"14px 16px",border:"1px solid #BBF7D0",background:"#F0FDF4",borderRadius:9,textDecoration:"none",display:"block"}}>
+                <div style={{fontSize:10,color:"#94A3B8",fontWeight:700,marginBottom:2}}>🚀 GOOGLE COLAB</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#059669"}}>Abrir Colab</div>
+                <div style={{fontSize:10,color:"#64748B",marginTop:2}}>Abre VISOR_PCRON_Colab.ipynb y ejecuta todo</div>
+              </a>
+            </div>
+            {/* Instrucciones */}
+            <div style={{background:"#FEF9C3",border:"1px solid #FDE047",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:11,color:"#713F12",lineHeight:1.7}}>
+              <strong>📋 Proceso de actualización mensual:</strong><br/>
+              1. Descarga las nuevas tablas en <strong>TABLAS_BASE</strong> de Drive<br/>
+              2. Abre el enlace de Colab arriba → Archivo → Abrir → Drive → <strong>VISOR_PCRON_Colab.ipynb</strong><br/>
+              3. Entorno de ejecución → <strong>Ejecutar todo</strong><br/>
+              4. Espera ~5 minutos · Los datos se actualizan en Supabase automáticamente
             </div>
 
             {/* ETL en curso */}
@@ -2824,9 +2878,13 @@ function TabAdministracion({pacientes}) {
                 <div style={{fontSize:16,fontWeight:800,color:"#0F2444"}}>📂 Documentos del Proyecto</div>
                 <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{docs.length} documentos · Repositorio técnico y funcional</div>
               </div>
-              <button style={{padding:"7px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                ⬆️ Subir documento
-              </button>
+              <div style={{display:"flex",gap:8}}>
+                <a href="https://drive.google.com/drive/folders/1u5yWwAqujqtR7ts9npVyAQyfMk63_lwD"
+                  target="_blank" rel="noopener noreferrer"
+                  style={{padding:"7px 14px",background:"#059669",border:"none",borderRadius:6,color:"white",fontSize:12,fontWeight:700,cursor:"pointer",textDecoration:"none"}}>
+                  📁 Abrir en Drive
+                </a>
+              </div>
             </div>
 
             {/* Categorías */}
@@ -3113,8 +3171,7 @@ function App() {
       const map=await cargarCriteriosGrupo(grupo, ids);
       if(Object.keys(map).length>0) {
         setCriteriosData(prev=>{
-          const next={...prev};
-          grupo.keys.forEach(k=>{next[k]=next[k]||{};Object.entries(map).forEach(([id,row])=>{next[k][id]=row;});});
+          const next={...prev,[grupoId]:map};
           return next;
         });
       }
@@ -3285,23 +3342,8 @@ function App() {
                 ))}
               </div>
             ) : (
-              <div style={{flex:1,display:"flex",alignItems:"center",gap:16}}>
+              <div style={{flex:1,display:"flex",alignItems:"center"}}>
                 <div style={{color:"#475569",fontSize:11,fontStyle:"italic"}}>Sin filtros — mostrando todos los pacientes</div>
-                {/* Atajos rápidos de filtro */}
-                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                  {[
-                    {l:"♂ Hombres",    f:{campo:"sexo",  label:"Sexo = H",       tipo:"select",valor:"H",    logica:"Y"}},
-                    {l:"♀ Mujeres",    f:{campo:"sexo",  label:"Sexo = M",       tipo:"select",valor:"M",    logica:"Y"}},
-                    {l:"GIP AP",       f:{campo:"gip_ap",label:"GIP AP = Sí",    tipo:"bool",  valor:true,   logica:"Y"}},
-                    {l:"≥ 85 años",    f:{campo:"edad",  label:"Edad ≥ 85",      tipo:"range", min:85,max:150,logica:"Y"}},
-                    {l:"Paliativos",   f:{campo:"pal",   label:"Paliativo = Sí", tipo:"bool",  valor:true,   logica:"Y"}},
-                  ].map(({l,f})=>(
-                    <button key={l} onClick={()=>setFiltros(p=>[...p,{...f,id:Date.now()+Math.random()}])}
-                      style={{padding:"3px 8px",fontSize:9,fontWeight:700,border:"1px solid rgba(255,255,255,0.12)",borderRadius:4,background:"rgba(255,255,255,0.05)",color:"#94A3B8",cursor:"pointer"}}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
               </div>
             )}
           </div>
