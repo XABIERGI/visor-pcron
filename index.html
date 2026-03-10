@@ -700,6 +700,74 @@ function IndexBar({label,value,max,osi_media,osi_p75,color}) {
 // ════════════════════════════════════════════════════════════════════════════
 // ❻  PANTALLA DE CARGA
 // ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// 🔐  AUTH COMPONENTS
+// ════════════════════════════════════════════════════════════════════════════
+function LoginForm({onLogin, loading, error}) {
+  const [email,setEmail]     = useState("");
+  const [password,setPassword]= useState("");
+  const [showPass,setShowPass]= useState(false);
+  const submit = () => { if(email&&password) onLogin(email,password); };
+  return (
+    <div>
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#93C5FD",marginBottom:5,letterSpacing:.8}}>EMAIL</div>
+        <input value={email} onChange={e=>setEmail(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&submit()}
+          placeholder="tu@email.com" type="email"
+          style={{width:"100%",padding:"10px 14px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"white",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
+      </div>
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#93C5FD",marginBottom:5,letterSpacing:.8}}>CONTRASEÑA</div>
+        <div style={{position:"relative"}}>
+          <input value={password} onChange={e=>setPassword(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&submit()}
+            type={showPass?"text":"password"}
+            style={{width:"100%",padding:"10px 14px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"white",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
+          <button onClick={()=>setShowPass(v=>!v)}
+            style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748B",cursor:"pointer",fontSize:12}}>
+            {showPass?"🙈":"👁"}
+          </button>
+        </div>
+      </div>
+      {error&&<div style={{background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#FCA5A5",marginBottom:14}}>{error}</div>}
+      <button onClick={submit} disabled={loading||!email||!password}
+        style={{width:"100%",padding:"12px",background:loading||!email||!password?"#1E3A5F":"#2563EB",border:"none",borderRadius:8,color:"white",fontSize:13,fontWeight:700,cursor:loading||!email||!password?"not-allowed":"pointer"}}>
+        {loading?"Verificando…":"Iniciar sesión"}
+      </button>
+    </div>
+  );
+}
+
+function ChangePasswordForm({onSave, loading, error}) {
+  const [p1,setP1]=useState("");
+  const [p2,setP2]=useState("");
+  const mismatch = p1&&p2&&p1!==p2;
+  const weak = p1.length>0&&p1.length<8;
+  const ok = p1.length>=8&&p1===p2;
+  return (
+    <div>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#93C5FD",marginBottom:5}}>NUEVA CONTRASEÑA (mín. 8 caracteres)</div>
+        <input value={p1} onChange={e=>setP1(e.target.value)} type="password"
+          style={{width:"100%",padding:"10px 14px",background:"rgba(255,255,255,0.08)",border:`1px solid ${weak?"rgba(220,38,38,.5)":"rgba(255,255,255,0.15)"}`,borderRadius:8,color:"white",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+        {weak&&<div style={{fontSize:10,color:"#FCA5A5",marginTop:3}}>Mínimo 8 caracteres</div>}
+      </div>
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#93C5FD",marginBottom:5}}>CONFIRMAR CONTRASEÑA</div>
+        <input value={p2} onChange={e=>setP2(e.target.value)} type="password"
+          style={{width:"100%",padding:"10px 14px",background:"rgba(255,255,255,0.08)",border:`1px solid ${mismatch?"rgba(220,38,38,.5)":"rgba(255,255,255,0.15)"}`,borderRadius:8,color:"white",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+        {mismatch&&<div style={{fontSize:10,color:"#FCA5A5",marginTop:3}}>Las contraseñas no coinciden</div>}
+      </div>
+      {error&&<div style={{background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#FCA5A5",marginBottom:14}}>{error}</div>}
+      <button onClick={()=>onSave(p1)} disabled={loading||!ok}
+        style={{width:"100%",padding:"12px",background:ok?"#059669":"#1E3A5F",border:"none",borderRadius:8,color:"white",fontSize:13,fontWeight:700,cursor:ok?"pointer":"not-allowed"}}>
+        {loading?"Guardando…":"Establecer contraseña y entrar"}
+      </button>
+    </div>
+  );
+}
+
 function PantallaCarga({progreso, error, onRetry}) {
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060E1E,#0F2444)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',system-ui,sans-serif"}}>
@@ -2290,16 +2358,89 @@ function TabAnalisis({pacientes,savedAnalisis,setSavedAnalisis}) {
 // ════════════════════════════════════════════════════════════════════════════
 function TabAdministracion({pacientes}) {
   const [subTab,setSubTab]=useState("usuarios");
-  const [usuarios,setUsuarios]=useState([
-    {id:1,nombre:"Admin Principal",email:"admin@osakidetza.eus",rol:"ADM",  centros:[],cupos:[],activo:true},
-    {id:2,nombre:"Dr. García López",email:"garcia@osakidetza.eus",rol:"PROFESIONAL",centros:[],cupos:["25940","20187"],activo:true},
-    {id:3,nombre:"Dirección OSI",email:"dir@osakidetza.eus",rol:"DIR",centros:[],cupos:[],activo:true},
-    {id:4,nombre:"Jefatura Lasarte",email:"jef.lasarte@osakidetza.eus",rol:"CEN",centros:["LASARTE","HERNANI"],cupos:[],activo:true},
-    {id:5,nombre:"Dra. Pérez",email:"perez@osakidetza.eus",rol:"PROFESIONAL",centros:[],cupos:["20056"],activo:false},
-  ]);
-  const [editUser,setEditUser]=useState(null);
+
+  // ── USUARIOS — conectado a Supabase ──────────────────────────────────────
+  const [usuarios,setUsuarios]   = useState([]);
+  const [usuLoading,setUsuLoading]= useState(true);
+  const [usuError,setUsuError]   = useState("");
+  const [editUser,setEditUser]   = useState(null);
   const [showNewUser,setShowNewUser]=useState(false);
-  const [newUser,setNewUser]=useState({nombre:"",email:"",rol:"PROFESIONAL",centros:[],cupos:[],activo:true});
+  const [newUser,setNewUser]     = useState({nombre:"",email:"",rol:"PROFESIONAL",centros:[],cupos:[],activo:true});
+  const [invitando,setInvitando] = useState(false);
+  const [invMsg,setInvMsg]       = useState("");
+
+  // Cargar usuarios desde Supabase
+  useEffect(()=>{
+    const load=async()=>{
+      setUsuLoading(true);
+      try {
+        const sb=await getSupabase();
+        const {data,error}=await sb.from("usuarios_visor").select("*").order("created_at");
+        if(error) throw error;
+        setUsuarios(data||[]);
+      } catch(e){ setUsuError(e.message); }
+      setUsuLoading(false);
+    };
+    load();
+  },[]);
+
+  // Guardar cambios de un usuario
+  const guardarUsuario=async(u)=>{
+    try {
+      const sb=await getSupabase();
+      const {error}=await sb.from("usuarios_visor").update({
+        nombre:u.nombre, rol:u.rol, centros:u.centros||[], cupos:u.cupos||[], activo:u.activo
+      }).eq("id",u.id);
+      if(error) throw error;
+      setUsuarios(prev=>prev.map(x=>x.id===u.id?u:x));
+      setEditUser(null);
+    } catch(e){ alert("Error guardando: "+e.message); }
+  };
+
+  // Crear nuevo usuario (invitar por email)
+  const invitarUsuario=async()=>{
+    setInvitando(true); setInvMsg("");
+    try {
+      const sb=await getSupabase();
+      // Crear en tabla usuarios_visor (el login lo gestiona Supabase Auth)
+      const tempPass="Pcron2026!"+Math.floor(Math.random()*9000+1000);
+      const {error:authErr}=await sb.auth.admin?.createUser?.({
+        email:newUser.email, password:tempPass, email_confirm:true
+      }) || {};
+      // Si no hay admin API, insertamos en tabla y el usuario usa "Forgot password"
+      const {error}=await sb.from("usuarios_visor").insert({
+        email:newUser.email, nombre:newUser.nombre, rol:newUser.rol,
+        centros:newUser.centros||[], cupos:newUser.cupos||[], activo:true, primer_login:true
+      });
+      if(error) throw error;
+      // Recargar lista
+      const {data}=await sb.from("usuarios_visor").select("*").order("created_at");
+      setUsuarios(data||[]);
+      setShowNewUser(false);
+      setNewUser({nombre:"",email:"",rol:"PROFESIONAL",centros:[],cupos:[],activo:true});
+      setInvMsg("✅ Usuario creado. Debe usar 'Olvidé mi contraseña' en el visor con su email.");
+    } catch(e){ setInvMsg("❌ "+e.message); }
+    setInvitando(false);
+  };
+
+  // Activar / desactivar usuario
+  const toggleActivo=async(u)=>{
+    try {
+      const sb=await getSupabase();
+      await sb.from("usuarios_visor").update({activo:!u.activo}).eq("id",u.id);
+      setUsuarios(prev=>prev.map(x=>x.id===u.id?{...x,activo:!x.activo}:x));
+    } catch(e){ alert(e.message); }
+  };
+
+  // Eliminar usuario
+  const eliminarUsuario=async(u)=>{
+    if(!confirm(`¿Eliminar a ${u.nombre}? Esta acción no se puede deshacer.`)) return;
+    try {
+      const sb=await getSupabase();
+      await sb.from("usuarios_visor").delete().eq("id",u.id);
+      setUsuarios(prev=>prev.filter(x=>x.id!==u.id));
+    } catch(e){ alert(e.message); }
+  };
 
   const [etlLog,setEtlLog]=useState([
     {fecha:"03/03/2026 08:14",estado:"OK",  nuevos:312, eliminados:18, modificados:1204, duracion:"4m 32s"},
@@ -2390,7 +2531,10 @@ function TabAdministracion({pacientes}) {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <div>
                 <div style={{fontSize:16,fontWeight:800,color:"#0F2444"}}>👥 Gestión de Usuarios</div>
-                <div style={{fontSize:12,color:"#64748B",marginTop:2}}>5 roles · Control de acceso CIC por ámbito</div>
+                <div style={{fontSize:12,color:"#64748B",marginTop:2}}>
+                  {usuLoading?"Cargando…":usuError?<span style={{color:"#DC2626"}}>{usuError}</span>:`${usuarios.length} usuarios · Supabase Auth`}
+                </div>
+                {invMsg&&<div style={{fontSize:11,marginTop:4,color:invMsg.startsWith("✅")?"#059669":"#DC2626"}}>{invMsg}</div>}
               </div>
               <button onClick={()=>setShowNewUser(true)} style={{padding:"8px 18px",background:"#1D4ED8",border:"none",borderRadius:7,color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 + Nuevo Usuario
@@ -2525,11 +2669,10 @@ function TabAdministracion({pacientes}) {
                   )}
                   <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"flex-end"}}>
                     <button onClick={()=>{setEditUser(null);setShowNewUser(false);}} style={{padding:"7px 16px",border:"1px solid #E2E8F0",borderRadius:6,background:"white",cursor:"pointer",fontSize:12}}>Cancelar</button>
-                    <button onClick={()=>{
-                      if(editUser){setUsuarios(p=>p.map(u=>u.id===editUser.id?editUser:u));setEditUser(null);}
-                      else{setUsuarios(p=>[...p,{...newUser,id:Date.now()}]);setShowNewUser(false);setNewUser({nombre:"",email:"",rol:"PROFESIONAL",centros:[],cupos:[],activo:true});}
-                    }} style={{padding:"7px 20px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                      {editUser?"Guardar cambios":"Crear usuario"}
+                    <button onClick={()=>{ if(editUser) guardarUsuario(editUser); else invitarUsuario(); }}
+                      disabled={invitando}
+                      style={{padding:"7px 20px",background:invitando?"#64748B":"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:12,fontWeight:700,cursor:invitando?"not-allowed":"pointer"}}>
+                      {invitando?"Guardando…":editUser?"Guardar cambios":"Crear usuario"}
                     </button>
                   </div>
                 </div>
@@ -2749,40 +2892,176 @@ function TabAdministracion({pacientes}) {
 // ⓭  APP PRINCIPAL — INTEGRACIÓN FINAL
 // ════════════════════════════════════════════════════════════════════════════
 function App() {
+  // ── AUTH ──────────────────────────────────────────────────────────────────
+  const [authState,setAuthState]   = useState("checking"); // checking|login|change_password|app
+  const [authUser,setAuthUser]     = useState(null);   // {email,nombre,rol,primer_login,...}
+  const [authError,setAuthError]   = useState("");
+  const [authLoading,setAuthLoading]= useState(false);
+
+  // ── APP ───────────────────────────────────────────────────────────────────
   const [loading,setLoading]=useState(true);
   const [progreso,setProgreso]=useState(0);
   const [error,setError]=useState(null);
   const [pacientes,setPacientes]=useState([]);
   const [tab,setTab]=useState("VISOR");
-  const [role,setRole]=useState("ADM");
+  const [role,setRole]=useState("PROFESIONAL");
   const [filtros,setFiltros]=useState([]);
   const [savedFiltros,setSavedFiltros]=useState([]);
   const [savedAnalisis,setSavedAnalisis]=useState([]);
   const [loadedGrupos,setLoadedGrupos]=useState([]);
   const [criteriosData,setCriteriosData]=useState({});
 
-  // ── CARGA INICIAL ─────────────────────────────────────────────────────────
+  // ── VERIFICAR SESIÓN AL CARGAR (incluye tokens de invitación en URL) ───────
   useEffect(()=>{
-    const cargar=async()=>{
+    const checkSession=async()=>{
       try {
-        const data=await cargarTodosPacientes(setProgreso);
-        if (data.length===0) {
-          // Sin datos en Supabase — carga demo de 10 pacientes de ejemplo
-          console.warn("Supabase devolvió 0 registros. Usando datos DEMO.");
-          setPacientes(DEMO_PACIENTES);
-        } else {
-          setPacientes(data);
+        const sb=await getSupabase();
+        if(!sb){setAuthState("login");return;}
+
+        // Detectar token de invitación/magic link en el hash de la URL
+        const hash = window.location.hash;
+        if(hash && hash.includes("access_token")) {
+          // Supabase lo procesa automáticamente al llamar getSession
+          // pero a veces hay que esperar un tick
+          await new Promise(r=>setTimeout(r,300));
         }
-        setProgreso(100);
-        setTimeout(()=>setLoading(false),400);
-      } catch(e) {
-        setError(e.message||"Error de conexión con Supabase");
-        setPacientes(DEMO_PACIENTES);
-        setLoading(false);
+
+        const {data:{session}, error} = await sb.auth.getSession();
+
+        if(session){
+          // Limpiar hash de la URL para que no quede visible
+          if(hash && hash.includes("access_token")){
+            window.history.replaceState(null,"",window.location.pathname);
+          }
+          await loadUserProfile(session.user, sb);
+        } else if(hash && hash.includes("access_token")){
+          // Intentar extraer y establecer sesión manualmente del hash
+          const params = new URLSearchParams(hash.replace("#",""));
+          const accessToken  = params.get("access_token");
+          const refreshToken = params.get("refresh_token");
+          if(accessToken && refreshToken){
+            const {data, error:sErr} = await sb.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            });
+            if(data?.session){
+              window.history.replaceState(null,"",window.location.pathname);
+              await loadUserProfile(data.session.user, sb);
+              return;
+            }
+          }
+          setAuthState("login");
+        } else {
+          setAuthState("login");
+        }
+      } catch(e){
+        console.error("checkSession error:",e);
+        setAuthState("login");
       }
     };
-    cargar();
+    checkSession();
   },[]);
+
+  // Escuchar cambios de sesión (útil para magic links y tokens)
+  useEffect(()=>{
+    let unsub;
+    const setup=async()=>{
+      const sb=await getSupabase();
+      if(!sb) return;
+      const {data:{subscription}}=sb.auth.onAuthStateChange(async(event,session)=>{
+        if(event==="SIGNED_IN"&&session&&authState==="checking"){
+          await loadUserProfile(session.user, sb);
+        }
+        if(event==="PASSWORD_RECOVERY"){
+          setAuthState("change_password");
+        }
+      });
+      unsub=subscription;
+    };
+    setup();
+    return ()=>unsub?.unsubscribe?.();
+  },[]);
+
+  const loadUserProfile=async(sbUser, sb)=>{
+    try {
+      const {data,error}=await sb.from("usuarios_visor").select("*").eq("email",sbUser.email).single();
+      if(error||!data){
+        // Usuario no en tabla — sin acceso
+        await sb.auth.signOut();
+        setAuthError("Tu cuenta no tiene acceso al Visor PCRON. Contacta con el administrador.");
+        setAuthState("login");
+        return;
+      }
+      if(!data.activo){
+        await sb.auth.signOut();
+        setAuthError("Tu cuenta está desactivada. Contacta con el administrador.");
+        setAuthState("login");
+        return;
+      }
+      // Actualizar last_login
+      await sb.from("usuarios_visor").update({last_login:new Date().toISOString()}).eq("email",sbUser.email);
+      setAuthUser(data);
+      setRole(data.rol);
+      if(data.primer_login){
+        setAuthState("change_password");
+      } else {
+        setAuthState("app");
+        cargarDatos();
+      }
+    } catch(e){ setAuthState("login"); }
+  };
+
+  const handleLogin=async(email,password)=>{
+    setAuthLoading(true); setAuthError("");
+    try {
+      const sb=await getSupabase();
+      const {data,error}=await sb.auth.signInWithPassword({email,password});
+      if(error) throw error;
+      await loadUserProfile(data.user, sb);
+    } catch(e){
+      setAuthError(e.message==="Invalid login credentials"?"Email o contraseña incorrectos":e.message);
+    }
+    setAuthLoading(false);
+  };
+
+  const handleChangePassword=async(newPass)=>{
+    setAuthLoading(true); setAuthError("");
+    try {
+      const sb=await getSupabase();
+      const {error}=await sb.auth.updateUser({password:newPass});
+      if(error) throw error;
+      await sb.from("usuarios_visor").update({primer_login:false}).eq("email",authUser.email);
+      setAuthUser(u=>({...u,primer_login:false}));
+      setAuthState("app");
+      cargarDatos();
+    } catch(e){ setAuthError(e.message); }
+    setAuthLoading(false);
+  };
+
+  const handleLogout=async()=>{
+    const sb=await getSupabase();
+    await sb.auth.signOut();
+    setAuthUser(null); setAuthState("login"); setPacientes([]);
+  };
+
+  const cargarDatos=async()=>{
+    setLoading(true); setProgreso(0);
+    try {
+      const data=await cargarTodosPacientes(setProgreso);
+      setPacientes(data.length===0?DEMO_PACIENTES:data);
+      setProgreso(100);
+      setTimeout(()=>setLoading(false),400);
+    } catch(e){
+      setError(e.message||"Error de conexión con Supabase");
+      setPacientes(DEMO_PACIENTES);
+      setLoading(false);
+    }
+  };
+
+  // ── CARGA INICIAL (solo si ya autenticado) ────────────────────────────────
+  useEffect(()=>{
+    if(authState!=="app") return;
+  },[authState]);
 
   // ── CARGA LAZY CRITERIOS ─────────────────────────────────────────────────
   const handleLoadGrupo=useCallback(async(grupoId, ids)=>{
@@ -2816,6 +3095,38 @@ function App() {
     {k:"ANÁLISIS",    icon:"📈"},
     ...(ROLES_DEF[role]?.admin?[{k:"ADMINISTRACIÓN",icon:"⚙️",admin:true}]:[]),
   ];
+
+  // ── AUTH SCREENS ─────────────────────────────────────────────────────────
+  if(authState==="checking") return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060E1E,#0F2444)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{color:"white",fontSize:14,opacity:.7}}>Verificando sesión…</div>
+    </div>
+  );
+
+  if(authState==="login") return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060E1E,#0F2444)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',system-ui,sans-serif"}}>
+      <div style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:20,padding:"40px 48px",width:380,boxShadow:"0 24px 48px rgba(0,0,0,0.4)"}}>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{fontSize:28,fontWeight:900,color:"white",letterSpacing:-1}}>VISOR PCRON</div>
+          <div style={{fontSize:13,color:"#93C5FD",marginTop:4}}>Paciente Crónico · Osakidetza</div>
+        </div>
+        <LoginForm onLogin={handleLogin} loading={authLoading} error={authError}/>
+      </div>
+    </div>
+  );
+
+  if(authState==="change_password") return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060E1E,#0F2444)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',system-ui,sans-serif"}}>
+      <div style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:20,padding:"40px 48px",width:380,boxShadow:"0 24px 48px rgba(0,0,0,0.4)"}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:22,fontWeight:900,color:"white"}}>Bienvenido/a</div>
+          <div style={{fontSize:14,color:"#93C5FD",marginTop:4}}>{authUser?.nombre}</div>
+          <div style={{fontSize:11,color:"#64748B",marginTop:8}}>Es tu primer acceso. Por favor establece una nueva contraseña.</div>
+        </div>
+        <ChangePasswordForm onSave={handleChangePassword} loading={authLoading} error={authError}/>
+      </div>
+    </div>
+  );
 
   if(loading) return <PantallaCarga progreso={progreso} error={error} onRetry={()=>window.location.reload()}/>;
 
@@ -2949,6 +3260,20 @@ function App() {
               </div>
             )}
           </div>
+        </div>
+
+               </div>
+
+        {/* USER + LOGOUT */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:16}}>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
+            <div style={{fontSize:9,color:"#93C5FD",fontWeight:600}}>{authUser?.rol} · {authUser?.email}</div>
+          </div>
+          <button onClick={handleLogout}
+            style={{padding:"5px 11px",fontSize:10,fontWeight:700,background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:6,color:"#FCA5A5",cursor:"pointer"}}>
+            ⏻ Salir
+          </button>
         </div>
 
         {/* TABS */}
