@@ -510,7 +510,7 @@ function applyFiltros(pacs, filtros) {
 async function cargarTodosPacientes(onProgress) {
   const sb = await getSupabase();
   if (!sb) return [];
-  const batchSize = 1000;
+  const batchSize = 5000; // PACIENTES_VISTA es ligera — 5000/batch = ~18 peticiones vs 88
   let all = [], offset = 0, hasMore = true;
   // Usa PACIENTES_VISTA — campos clave extraídos del JSONB server-side (~5MB vs 122MB)
   while (hasMore) {
