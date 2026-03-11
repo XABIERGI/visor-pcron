@@ -782,6 +782,23 @@ function getAuditDef(pat) {
 
 
 // Mapeo desde PACIENTES_VISTA (campos planos, sin JSONB)
+// Normaliza valores de pob de Supabase → claves de POB_DEF
+function normalizarPob(v) {
+  if (!v) return '';
+  const s = String(v).toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
+  // Mapeo por palabra clave
+  if (s.includes("GERON"))          return "01 GERONTOLÓGICO";
+  if (s.includes("PALIAT"))         return "02 PALIATIVO";
+  if (s.includes("DEPEND"))         return "03 DEPENDIENTE DOMICILIO";
+  if (s.includes("HF HOSP") || (s.includes("HF") && s.includes("HOSP"))) return "04 HF HOSPITALARIO";
+  if (s.includes("HF AP") || (s.includes("HF") && s.includes("AP")))     return "05 HF AP";
+  if (s.includes("COMORB"))         return "06 MAYOR COMORBILIDAD";
+  if (s.includes("85"))             return "08 MAYOR 85 SANO";
+  if (s.includes("SANO"))           return "07 MAYOR SANO";
+  if (s.includes("DEMOG"))          return "09 DEMOGRÁFICOS";
+  return v; // devolver original si no se reconoce
+}
+
 let _debugLogged = false;
 function mapearPacienteVista(r) {
   if (!_debugLogged) {
@@ -789,7 +806,9 @@ function mapearPacienteVista(r) {
     const sample = {};
     Object.keys(r).forEach(k => { try { sample[k] = r[k]; } catch(e) {} });
     console.log("🔍 PRIMERA FILA CAMPOS:", Object.keys(r));
-    console.log("🔍 pob:", r.pob, "caract_geron:", r.caract_geron, "medico:", r.medico, "bloque:", r.bloque);
+    console.log("🔍 pob:", r.pob, "→", normalizarPob(r.pob));
+    console.log("🔍 caract_geron:", r.caract_geron, "caract_sano:", r.caract_sano, "caract_may85:", r.caract_may85);
+    console.log("🔍 medico:", r.medico, "bloque:", r.bloque, "codigo_cupo:", r.codigo_cupo);
   }
   const audit = r.auditoria || {};
 
@@ -835,7 +854,7 @@ function mapearPacienteVista(r) {
     gip_ap:      esSi(r.gip_ap),
     gip_hosp:    esSi(r.gip_hosp),
     gip_osarean: esSi(r.gip_osarean),
-    pob:     r.pob || '',
+    pob:     normalizarPob(r.pob),
     geron:   esSi(r.caract_geron),
     pal:     esSi(r.caract_pal),
     dep:     esSi(r.caract_dep),
@@ -2257,10 +2276,10 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             {cuposDisp.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {cuposDisp.length-50} más. Filtra por centro para acotar.</div>}
           </Seccion>
 
-          {/* MÉDICO REFERENCIA */}
+          {/* MÉDICO REFERENCIA — pendiente de tabla en Supabase */}
           <Seccion k="medico" label="Médico Referencia PCRON">
-            <div style={{maxHeight:130,overflowY:"auto"}}>
-              <CheckGroup campo="medico" opciones={medicosDisp.slice(0,60)}/>
+            <div style={{padding:"8px",background:"#FEF9C3",borderRadius:6,fontSize:10,color:"#92400E"}}>
+              ⚠️ Pendiente de carga — tabla de médicos no disponible aún en PACIENTES_VISTA
             </div>
           </Seccion>
 
@@ -3994,7 +4013,7 @@ function App() {
 
   const canCIC=ROLES_DEF[role]?.cic||false;
   const pacientesFiltrados=useMemo(()=>applyFiltros(pacientes,filtros),[pacientes,filtros]);
-  const pctTotal=+pct(pacientesFiltrados.length,META.totalBD);
+  const pctTotal=pacientes.length>0?+pct(pacientesFiltrados.length,pacientes.length):0;
 
   const TABS=[
     {k:"VISOR",       icon:"🏠"},
@@ -4088,7 +4107,7 @@ function App() {
             <div>
               <div style={{color:"#93C5FD",fontSize:9,fontWeight:700,letterSpacing:1.5,marginBottom:2}}>PACIENTES EN VISTA</div>
               <div style={{color:"white",fontSize:52,fontWeight:900,lineHeight:1,letterSpacing:-2}}>{nFmt(pacientesFiltrados.length)}</div>
-              <div style={{color:"#64748B",fontSize:11,marginTop:2}}>de {nFmt(pacientes.length)} cargados · {nFmt(META.totalBD)} en BD</div>
+              <div style={{color:"#64748B",fontSize:11,marginTop:2}}>{nFmt(pacientesFiltrados.length)} de {nFmt(pacientes.length)}</div>
             </div>
             <div style={{width:1,alignSelf:"stretch",background:"rgba(255,255,255,0.1)"}}/>
             <div>
