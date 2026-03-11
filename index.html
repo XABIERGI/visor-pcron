@@ -46,9 +46,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
   loadScript('https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',()=>{
     setBar(40,'Cargando Supabase…');
     loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',()=>{
-      setBar(55,'Cargando XLSX…');
-      loadScript('https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',()=>{
-      setBar(65,'Cargando Babel…');
+      setBar(60,'Cargando Babel…');
       loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
         setBar(80,'Compilando app…');
         setTimeout(()=>{
@@ -64,7 +62,6 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
             console.error('Babel error:',e);
           }
         },50);
-      });
       });
     });
   });
@@ -492,7 +489,6 @@ function applyFiltros(pacs, filtros) {
       else if (f.tipo==="bool_pend") match = f.valor ? (p.audit_pend||[]).length>0 : (p.audit_pend||[]).length===0;
       else if (f.tipo==="pend_item") match = (p.audit_pend||[]).includes(f.valor);
       else if (f.tipo==="crit_bool") match = f.valor ? Boolean(getC(p._criterios||{},f.campo)) : !getC(p._criterios||{},f.campo);
-      else if (f.tipo==="crit_val") { const cv=getC(p._criterios||{},f.campo); match=String(cv||"").toLowerCase()===String(f.valor||"").toLowerCase(); }
       return f.logica==="NO" ? !match : match;
     });
     // Y = todos, O = alguno
@@ -510,7 +506,7 @@ function applyFiltros(pacs, filtros) {
 async function cargarTodosPacientes(onProgress) {
   const sb = await getSupabase();
   if (!sb) return [];
-  const batchSize = 5000;
+  const batchSize = 1000;
   let all = [], offset = 0, hasMore = true;
   // Usa PACIENTES_VISTA — campos clave extraídos del JSONB server-side (~5MB vs 122MB)
   while (hasMore) {
@@ -534,34 +530,48 @@ async function cargarTodosPacientes(onProgress) {
 // Fase 2: carga criterios JSONB en background, actualiza pacientes progresivamente
 
 async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
-  console.log("🔍 Iniciando carga criterios background, pacientes:", pacientes.length);
   const sb = await getSupabase();
-  if (!sb) { console.error("🔍 Sin supabase"); return; }
-  const batchSize = 300;
+  if (!sb) return;
+  const batchSize = 200; // Supabase .in() tiene límite de URL — máx ~200 IDs
   let offset = 0, total = pacientes.length;
+  // Mapa id→índice para updates rápidos
   const idxMap = {};
   pacientes.forEach((p,i) => { idxMap[p.id] = i; });
 
   while (offset < total) {
-    const chunk = pacientes.slice(offset, offset + batchSize);
-    const ids = chunk.map(p => p.id);
+    const ids = pacientes.slice(offset, offset + batchSize).map(p => p.id);
     const {data, error} = await sb
       .from("PACIENTES")
       .select("id_paciente,criterios")
       .in("id_paciente", ids);
-    if (!error && data) {
-      const updates = {};
-      data.forEach(row => {
-        const i = idxMap[row.id_paciente];
-        if (i === undefined) return;
-        updates[i] = { _criterios: row.criterios || {} };
-      });
-      if (Object.keys(updates).length > 0) onBatch(updates);
-    }
+    if (error || !data) { offset += batchSize; continue; }
+
+    // Merge criterios into existing pacientes — remap completo
+    const updates = {};
+    data.forEach(row => {
+      const idx = idxMap[row.id_paciente];
+      if (idx === undefined) return;
+      const p = pacientes[idx];
+      // Reconstruir fila completa con columnas básicas + criterios descargados
+      const fullRow = {
+        id_paciente: p.id,
+        cic:         p.cic,
+        edad:        p.edad,
+        sexo:        p.sexo === 'H' ? 'Hombre' : 'Mujer',
+        comarca_osi: p.osi,
+        centro:      p.centro,
+        codigo_cupo: p.cupo,
+        criterios:   row.criterios || {},
+      };
+      updates[idx] = mapearPaciente(fullRow);
+    });
+    onBatch(updates);
     offset += batchSize;
-    onProgress(Math.round(Math.min(offset, total) / total * 100));
-    await new Promise(r => setTimeout(r, 30));
+    onProgress(Math.round(offset / total * 100));
+    // Pequeña pausa para no bloquear el hilo UI
+    await new Promise(r => setTimeout(r, 50));
   }
+  onProgress(100);
 }
 
 // ── MAPEO columnas Supabase → claves internas ──────────────────────────────
@@ -774,8 +784,7 @@ let _debugLogged = false;
 function mapearPacienteVista(r) {
   if (!_debugLogged) {
     _debugLogged = true;
-    console.log("🔍 PRIMERA FILA SUPABASE RAW:", JSON.stringify(r, null, 2));
-    console.log("🔍 CAMPOS:", Object.keys(r));
+    console.log("🔍 PRIMERA FILA RAW:", JSON.stringify(r));
   }
   const audit = r.auditoria || {};
 
@@ -2403,143 +2412,58 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             📦 Criterios Clínicos
           </div>
 
-          {/* ── GIPs (inmediato, VISTA) ── */}
-          <Seccion k="gips" label="GIP — Seguimiento">
-            {[["gip_ap","GIP AP"],["gip_hosp","GIP Hospitalario"],["gip_osarean","GIP OSAREAN"]].map(([campo,lbl])=>{
-              const fSi=filtros.find(f=>f.campo===campo&&f.tipo==="bool"&&f.valor===true);
-              const fNo=filtros.find(f=>f.campo===campo&&f.tipo==="bool"&&f.valor===false);
-              return(
-                <div key={campo} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid #F1F5F9",fontSize:11}}>
-                  <span style={{color:"#374151",flex:1}}>{lbl}</span>
-                  <div style={{display:"flex",gap:3}}>
-                    {[["Sí",true,"#059669"],["No",false,"#DC2626"]].map(([l,v,c])=>{
-                      const on=v?!!fSi:!!fNo;
-                      return(
-                        <button key={String(v)} onClick={()=>{
-                          setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.tipo==="bool")));
-                          if(!on) add({campo,label:`${lbl}=${l}`,tipo:"bool",valor:v});
-                        }} style={{padding:"2px 8px",fontSize:10,fontWeight:700,border:"none",borderRadius:4,cursor:"pointer",
-                          background:on?c+"20":"#F1F5F9",color:on?c:"#94A3B8",outline:`1px solid ${on?c:"transparent"}`}}>
-                          {l}
-                        </button>
-                      );
-                    })}
-                    {(fSi||fNo)&&<button onClick={()=>setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.tipo==="bool")))}
-                      style={{padding:"2px 4px",fontSize:10,border:"none",background:"none",cursor:"pointer",color:"#94A3B8"}}>✕</button>}
-                  </div>
-                </div>
-              );
-            })}
-          </Seccion>
-
-          {/* ── Índices (inmediato, VISTA) ── */}
-          <Seccion k="indices_filt" label="Índices clínicos">
-            {[["compl","Complejidad",0,20],["co","Comorbilidad",0,10],["fr","Frecuentación",0,10]].map(([campo,lbl,mn,mx])=>{
-              const f=filtros.find(f=>f.campo===campo&&f.tipo==="range");
-              const vMin=f?f.min:mn, vMax=f?f.max:mx;
-              return(
-                <div key={campo} style={{marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-                    <span style={{fontSize:10,fontWeight:600,color:"#374151"}}>{lbl}</span>
-                    <span style={{fontSize:9,fontWeight:700,color:f?"#3B82F6":"#CBD5E1"}}>
-                      {vMin}–{vMax}
-                      {f&&<button onClick={()=>setFiltros(p=>p.filter(x=>!(x.campo===campo&&x.tipo==="range")))}
-                        style={{marginLeft:3,border:"none",background:"none",cursor:"pointer",color:"#94A3B8",fontSize:10,verticalAlign:"middle"}}>✕</button>}
-                    </span>
-                  </div>
-                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                    <input type="range" min={mn} max={mx} step={0.5} value={vMin} style={{flex:1,accentColor:"#3B82F6",height:4}}
-                      onChange={e=>{const v=parseFloat(e.target.value);setFiltros(p=>{const w=p.filter(x=>!(x.campo===campo&&x.tipo==="range"));return (v===mn&&vMax===mx)?w:[...w,{campo,label:`${lbl} ≥${v}`,tipo:"range",min:v,max:vMax}];});}}/>
-                    <input type="range" min={mn} max={mx} step={0.5} value={vMax} style={{flex:1,accentColor:"#6366F1",height:4}}
-                      onChange={e=>{const v=parseFloat(e.target.value);setFiltros(p=>{const w=p.filter(x=>!(x.campo===campo&&x.tipo==="range"));return (vMin===mn&&v===mx)?w:[...w,{campo,label:`${lbl} ≤${v}`,tipo:"range",min:vMin,max:v}];});}}/>
-                  </div>
-                </div>
-              );
-            })}
-          </Seccion>
-
-          {/* ── Auditoría (inmediato, VISTA) ── */}
-          <Seccion k="auditoria_filt" label="Auditoría">
-            <div style={{marginBottom:8}}>
-              <div style={{fontSize:10,fontWeight:600,color:"#374151",marginBottom:4}}>Semáforo global</div>
-              <div style={{display:"flex",gap:4}}>
-                {[["VERDE","#059669","🟢"],["NARANJA","#EA580C","🟠"],["ROJO","#DC2626","🔴"]].map(([color,c,ico])=>{
-                  const on=filtros.some(f=>f.campo==="audit_color"&&f.valor===color);
-                  return(
-                    <button key={color} onClick={()=>{
-                      if(on) setFiltros(p=>p.filter(f=>!(f.campo==="audit_color"&&f.valor===color)));
-                      else add({campo:"audit_color",label:`Auditoría ${color}`,tipo:"select",valor:color});
-                    }} style={{flex:1,padding:"4px 6px",fontSize:10,fontWeight:700,borderRadius:5,cursor:"pointer",
-                      border:`2px solid ${on?c:"#E2E8F0"}`,background:on?c+"20":"white",color:on?c:"#94A3B8"}}>
-                      {ico}
+          {GRUPOS_CRITERIOS.map(g=>{
+            const loaded=loadedGrupos.includes(g.id);
+            return (
+              <Seccion key={g.id} k={`crit_${g.id}`} label={g.label}
+                badge={loaded?"✓ Cargado":"Sin cargar"}
+                badgeColor={loaded?"#059669":"#94A3B8"}>
+                {!loaded ? (
+                  <div style={{textAlign:"center",padding:"10px 0"}}>
+                    <div style={{fontSize:10,color:"#94A3B8",marginBottom:8}}>Datos no descargados</div>
+                    <button onClick={()=>onLoadGrupo(g.id, pacientes.slice(0,5000).map(p=>p.id))}
+                      style={{padding:"5px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                      📦 Cargar criterios
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                <span style={{fontSize:10,fontWeight:600,color:"#374151"}}>% mínimo cumplimiento</span>
-                {(()=>{const f=filtros.find(f=>f.campo==="audit_global"&&f.tipo==="range");return f&&<button onClick={()=>setFiltros(p=>p.filter(x=>!(x.campo==="audit_global"&&x.tipo==="range")))} style={{border:"none",background:"none",cursor:"pointer",color:"#94A3B8",fontSize:11}}>✕</button>;})()}
-              </div>
-              {(()=>{
-                const f=filtros.find(f=>f.campo==="audit_global"&&f.tipo==="range");
-                const v=f?f.min:0;
-                return(
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="range" min={0} max={100} step={5} value={v} style={{flex:1,accentColor:"#6366F1"}}
-                      onChange={e=>{const pct=parseInt(e.target.value);setFiltros(p=>{const w=p.filter(x=>!(x.campo==="audit_global"&&x.tipo==="range"));return pct===0?w:[...w,{campo:"audit_global",label:`Auditoría ≥${pct}%`,tipo:"range",min:pct,max:100}];});}}/>
-                    <span style={{fontSize:12,fontWeight:800,color:"#6366F1",minWidth:36}}>{v}%</span>
                   </div>
-                );
-              })()}
-            </div>
-          </Seccion>
+                ) : (
+                  (g.items||[]).map(({k,l})=>{
+                    const on=filtros.some(f=>f.campo===k&&f.valor===true);
+                    return (
+                      <label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 5px",borderRadius:4,marginBottom:2,
+                        background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
+                        <input type="checkbox" checked={on}
+                          onChange={e=>{
+                            if(e.target.checked) add({campo:k,label:l,tipo:"crit_bool",valor:true});
+                            else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.valor===true)));
+                          }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+                        <span style={{fontSize:10,color:on?"#1D4ED8":"#475569",fontWeight:on?700:400}}>{l}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </Seccion>
+            );
+          })}
 
-          {/* ── Criterios JSONB — bajo demanda ── */}
-          <div style={{marginTop:10,paddingTop:8,borderTop:"1px solid #E2E8F0"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <div style={{fontSize:9,fontWeight:800,color:"#94A3B8",letterSpacing:1,textTransform:"uppercase"}}>
-                Criterios detallados (bajo demanda)
+          {/* Filtros guardados */}
+          {savedFiltros.length>0&&(
+            <div style={{marginTop:10,border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden"}}>
+              <div style={{padding:"7px 11px",background:"#F8FAFC",fontSize:11,fontWeight:700,color:"#1E293B"}}>📂 Filtros Guardados</div>
+              <div style={{padding:"8px 10px"}}>
+                {savedFiltros.map((sf,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                    <button onClick={()=>setFiltros(sf.filtros)}
+                      style={{flex:1,padding:"4px 9px",background:"white",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,cursor:"pointer",color:"#475569",textAlign:"left",fontFamily:"inherit"}}>
+                      ▶ {sf.name} <span style={{color:"#94A3B8",fontSize:9}}>({sf.filtros.length} filtros · {sf.fecha||""})</span>
+                    </button>
+                    <button onClick={()=>setSavedFiltros(p=>p.filter((_,j)=>j!==i))}
+                      style={{padding:"3px 7px",background:"#FEE2E2",border:"1px solid #FCA5A5",borderRadius:4,fontSize:11,cursor:"pointer",color:"#991B1B"}}>×</button>
+                  </div>
+                ))}
               </div>
-              {criteriosPct!==null&&criteriosPct<100&&(
-                <div style={{fontSize:9,color:"#FCD34D",fontWeight:700}}>⟳ {criteriosPct}%</div>
-              )}
             </div>
-            {GRUPOS_CRITERIOS.map(g=>{
-              const loaded=loadedGrupos.includes(g.id);
-              return(
-                <Seccion key={g.id} k={`crit_${g.id}`} label={g.label}
-                  badge={loaded?"✓ Cargado":"Sin cargar"}
-                  badgeColor={loaded?"#059669":"#94A3B8"}>
-                  {!loaded?(
-                    <div style={{textAlign:"center",padding:"8px 0"}}>
-                      <div style={{fontSize:10,color:"#94A3B8",marginBottom:6}}>Datos no descargados</div>
-                      <button onClick={()=>onLoadGrupo(g.id, pacientes.slice(0,5000).map(p=>p.id))}
-                        style={{padding:"4px 12px",background:"#1D4ED8",border:"none",borderRadius:5,color:"white",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-                        📦 Cargar criterios
-                      </button>
-                    </div>
-                  ):(
-                    (g.items||[]).map(({k,l})=>{
-                      const on=filtros.some(f=>f.campo===k&&f.valor===true);
-                      return(
-                        <label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 5px",borderRadius:4,marginBottom:2,
-                          background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
-                          <input type="checkbox" checked={on}
-                            onChange={e=>{
-                              if(e.target.checked) add({campo:k,label:l,tipo:"crit_bool",valor:true});
-                              else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.valor===true)));
-                            }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                          <span style={{fontSize:10,color:on?"#1D4ED8":"#374151",fontWeight:on?600:400,flex:1,lineHeight:1.3}}>{l}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </Seccion>
-              );
-            })}
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -3637,6 +3561,34 @@ function TabAdministracion({pacientes}) {
                 </a>
               </div>
             </div>
+
+            {/* Categorías */}
+            {["Lógica","Índice","Calidad","Manual","Técnico","Formación"].map(cat=>{
+              const catDocs=docs.filter(d=>d.categoria===cat);
+              if(!catDocs.length) return null;
+              return (
+                <div key={cat} style={{marginBottom:14}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#475569",letterSpacing:.8,textTransform:"uppercase",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{width:4,height:4,borderRadius:"50%",background:"#3B82F6"}}/>
+                    {cat} <span style={{color:"#94A3B8",fontWeight:400}}>({catDocs.length})</span>
+                  </div>
+                  {catDocs.map(d=>(
+                    <div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",border:"1px solid #E2E8F0",borderRadius:8,marginBottom:4,background:"white"}}>
+                      <div style={{fontSize:20}}>{d.nombre.endsWith(".pdf")?"📄":d.nombre.endsWith(".xlsx")?"📊":d.nombre.endsWith(".docx")?"📝":"📁"}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:12,fontWeight:600,color:"#1E293B"}}>{d.nombre}</div>
+                        <div style={{fontSize:10,color:"#94A3B8"}}>{d.fecha} · {d.size}</div>
+                      </div>
+                      <div style={{display:"flex",gap:5}}>
+                        <button style={{padding:"4px 10px",fontSize:10,border:"1px solid #BFDBFE",borderRadius:4,background:"#EFF6FF",color:"#1D4ED8",cursor:"pointer",fontWeight:600}}>👁 Ver</button>
+                        <button style={{padding:"4px 10px",fontSize:10,border:"1px solid #D1FAE5",borderRadius:4,background:"#D1FAE5",color:"#059669",cursor:"pointer",fontWeight:600}}>⬇️</button>
+                        <button onClick={()=>setDocs(p=>p.filter(x=>x.id!==d.id))} style={{padding:"4px 8px",fontSize:10,border:"1px solid #FCA5A5",borderRadius:4,background:"#FEF2F2",color:"#DC2626",cursor:"pointer"}}>🗑</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -3996,30 +3948,14 @@ function App() {
   };
 
   const cargarDatos=async()=>{
-    setLoading(true); setProgreso(0); setError(null);
+    setLoading(true); setProgreso(0);
     try {
-      // ── FASE 1: PACIENTES_VISTA — rápida, sin criterios (~5-10s) ─────────
-      const pacs=await cargarTodosPacientes(p=>setProgreso(Math.round(p*0.7)));
-      const pacsFinal=pacs.length===0?DEMO_PACIENTES:pacs;
-      setPacientes(pacsFinal);
+      const data=await cargarTodosPacientes(setProgreso);
+      const pacs=data.length===0?DEMO_PACIENTES:data;
+      setPacientes(pacs);
       setProgreso(100);
-      setTimeout(()=>setLoading(false),300);
-
-      // ── FASE 2: Criterios JSONB en background ────────────────────────────
-      if(pacs.length>0){
-        setCriteriosPct(0);
-        cargarCriteriosBackground(
-          pacsFinal,
-          pct=>setCriteriosPct(pct),
-          (updates)=>{
-            setPacientes(prev=>{
-              const next=[...prev];
-              Object.entries(updates).forEach(([i,p])=>{ next[+i]={...next[+i],...p}; });
-              return next;
-            });
-          }
-        ).then(()=>setCriteriosPct(100)).catch(e=>{ console.warn('Criterios bg error:',e); setCriteriosPct(null); });
-      }
+      setTimeout(()=>setLoading(false),400);
+      // PACIENTES_VISTA ya incluye todos los campos necesarios — sin background
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
@@ -4030,7 +3966,6 @@ function App() {
   // ── CARGA INICIAL (solo si ya autenticado) ────────────────────────────────
   useEffect(()=>{
     if(authState!=="app") return;
-    cargarDatos();
   },[authState]);
 
   // ── CARGA LAZY CRITERIOS ─────────────────────────────────────────────────
@@ -4129,11 +4064,7 @@ function App() {
 
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:12,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
-            <div style={{fontSize:9,color:"#93C5FD",fontWeight:600}}>
-              {authUser?.rol} · {authUser?.email}
-              {criteriosPct!==null&&criteriosPct<100&&<span style={{marginLeft:8,color:"#FCD34D",fontWeight:700}}>⟳ criterios {criteriosPct}%</span>}
-              {criteriosPct===100&&<span style={{marginLeft:8,color:"#6EE7B7",fontWeight:700}}>✓ criterios OK</span>}
-            </div>
+            <div style={{fontSize:9,color:"#93C5FD",fontWeight:600}}>{authUser?.rol} · {authUser?.email}</div>
           </div>
           <button onClick={handleLogout}
             style={{padding:"5px 12px",fontSize:11,fontWeight:700,background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:6,color:"#FCA5A5",cursor:"pointer"}}>
