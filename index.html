@@ -548,6 +548,225 @@ function getC(crit, key) {
   return undefined;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// 📋  CRITERIOS DE AUDITORÍA POR PERFIL (4 dimensiones)
+// ════════════════════════════════════════════════════════════════════════════
+const AUDIT_DEF = {
+  // ── 6.1 ESTRATIFICACIÓN ──
+  estrat: {
+    label: "Estratificación",
+    icon:  "📊",
+    perfiles: {
+      pal:  { total:3, items:[
+        {l:"Alerta A PAL",         k:"alerta_pal",    oblig:true},
+        {l:"Episodio PAL",         k:"episodio_pal",  oblig:true},
+        {l:"PPP basal: Estadio final", k:"ppp_estadio_pal", oblig:false},
+      ]},
+      geron: { total:3, items:[
+        {l:"Alerta Frágil",           k:"alerta_fragil",   oblig:true},
+        {l:"Alerta Institucionalizado",k:"alerta_instit",   oblig:true},
+        {l:"PPP basal: Dep gerontológico", k:"ppp_estadio_ger", oblig:false},
+      ]},
+      dep:  { total:3, items:[
+        {l:"Episodio Crónico Domiciliario", k:"episodio_dep",  oblig:true},
+        {l:"Alerta Crónico Domiciliario",   k:"alerta_dep",    oblig:true},
+        {l:"PPP basal: Dependiente en domicilio", k:"ppp_estadio_dep", oblig:false},
+      ]},
+      hfh:  { total:3, items:[
+        {l:"Alerta Pluri",    k:"alerta_pluri",  oblig:true},
+        {l:"Alerta Frágil",   k:"alerta_fragil", oblig:true},
+        {l:"PPP basal: Frágil con reingresos", k:"ppp_estadio_hfh", oblig:false},
+      ]},
+      hfap: { total:3, items:[
+        {l:"Alerta Pluri",    k:"alerta_pluri",  oblig:true},
+        {l:"Episodio PPP",    k:"episodio_ppp",  oblig:true},
+        {l:"PAM tipología",   k:"pam_tipologia", oblig:false},
+      ]},
+      comorb: { total:1, items:[
+        {l:"PPP basal: Prefrágil", k:"ppp_estadio_comorb", oblig:true},
+      ]},
+      sano: { total:1, items:[
+        {l:"PAM: Mayor sano", k:"pam_mayor_sano", oblig:true},
+      ]},
+    }
+  },
+  // ── 6.2 EQUIPO DE REFERENCIA ──
+  equipo: {
+    label: "Equipo Referencia",
+    icon:  "👥",
+    perfiles: {
+      pal:   { total:2, items:[
+        {l:"Equipo REF AP > 1 cita futura", k:"equipo_ap_gts", oblig:true},
+        {l:"Equipo REF AP GIP PPP = Sí",    k:"gip_ap",        oblig:true},
+      ]},
+      geron: { total:1, items:[
+        {l:"Equipo REF AP > 0 (citas futuro)", k:"equipo_ap_gts", oblig:true},
+      ]},
+      hfh:   { total:2, items:[
+        {l:"GIP Hospitalario = Sí",     k:"gip_hosp",   oblig:true},
+        {l:"Médico REF PCRON asignado", k:"medico",      oblig:true},
+      ]},
+      _resto: { total:1, items:[
+        {l:"Equipo REF AP > 0", k:"equipo_ap_gts", oblig:true},
+      ]},
+    }
+  },
+  // ── 6.3 FORMULARIOS ──
+  form: {
+    label: "Formularios",
+    icon:  "📝",
+    perfiles: {
+      pal:    { total:6, items:[
+        {l:"Barthel <6m",    k:"barthel_6m",    oblig:true},
+        {l:"PIA PAL <6m",    k:"pia_pal_6m",    oblig:true},
+        {l:"PPP basal <6m",  k:"ppp_basal_6m",  oblig:true},
+        {l:"FVig <6m",       k:"fvig_6m",       oblig:true},
+        {l:"NECPAL <6m",     k:"necpal_6m",     oblig:true},
+        {l:"PPP evol >4",    k:"ppp_evol_4",    oblig:true},
+      ]},
+      geron:  { total:5, items:[
+        {l:"Barthel <6m",    k:"barthel_6m",    oblig:true},
+        {l:"PIA <6m",        k:"pia_6m",        oblig:true},
+        {l:"PPP basal <12m", k:"ppp_basal_12m", oblig:true},
+        {l:"FVig <6m",       k:"fvig_6m",       oblig:true},
+        {l:"NECPAL <12m",    k:"necpal_12m",    oblig:true},
+      ]},
+      dep:    { total:7, items:[
+        {l:"Barthel <6m",     k:"barthel_6m",    oblig:true},
+        {l:"PIA <6m",         k:"pia_6m",        oblig:true},
+        {l:"PPP basal <6m",   k:"ppp_basal_6m",  oblig:true},
+        {l:"FVig <6m",        k:"fvig_6m",       oblig:true},
+        {l:"NECPAL <12m",     k:"necpal_12m",    oblig:true},
+        {l:"PPP evol >2",     k:"ppp_evol_2",    oblig:true},
+        {l:"PPP evol OGP >1", k:"ppp_evol_ogp_1",oblig:true},
+      ]},
+      hfh:    { total:6, items:[
+        {l:"Barthel <6m",    k:"barthel_6m",    oblig:true},
+        {l:"PIA <6m",        k:"pia_6m",        oblig:true},
+        {l:"PPP basal <12m", k:"ppp_basal_12m", oblig:true},
+        {l:"FVig <12m",      k:"fvig_12m",      oblig:true},
+        {l:"NECPAL <12m",    k:"necpal_12m",    oblig:true},
+        {l:"PPP evol >10",   k:"ppp_evol_10",   oblig:true},
+      ]},
+      hfap:   { total:6, items:[
+        {l:"Barthel <12m",    k:"barthel_12m",   oblig:true},
+        {l:"PIA <12m",        k:"pia_12m",       oblig:true},
+        {l:"PPP basal <12m",  k:"ppp_basal_12m", oblig:true},
+        {l:"FVig <12m",       k:"fvig_12m",      oblig:true},
+        {l:"PPP evol N",      k:"ppp_evol_n",    oblig:true},
+        {l:"PPP evol OGP >3", k:"ppp_evol_ogp_3",oblig:true},
+      ]},
+      comorb: { total:4, items:[
+        {l:"Barthel <12m",   k:"barthel_12m",   oblig:true},
+        {l:"PAM <12m",       k:"pam_12m",       oblig:true},
+        {l:"PPP basal <12m", k:"ppp_basal_12m", oblig:true},
+        {l:"FVig <12m",      k:"fvig_12m",      oblig:true},
+      ]},
+      sano:   { total:1, items:[
+        {l:"PAM último <12m", k:"pam_12m", oblig:true},
+      ]},
+    }
+  },
+  // ── 6.4 SEGUIMIENTO ──
+  seg: {
+    label: "Seguimiento",
+    icon:  "📅",
+    perfiles: {
+      pal:    { total:4, items:[
+        {l:"ING directos ≥0",       k:"ing_directos",  oblig:true},
+        {l:"Consultas ENF AP >2",   k:"enf_ap_gt2",    oblig:true},
+        {l:"Consultas MED AP >2",   k:"med_ap_gt2",    oblig:true},
+        {l:"ING de día ≥0",         k:"ing_dia",       oblig:true},
+      ]},
+      geron:  { total:6, items:[
+        {l:"Consultas ENF AP >2",   k:"enf_ap_gt2",    oblig:true},
+        {l:"Consultas MED AP >2",   k:"med_ap_gt2",    oblig:true},
+        {l:"ING directos ≥0",       k:"ing_directos",  oblig:true},
+        {l:"ING de día ≥0",         k:"ing_dia",       oblig:true},
+        {l:"Citas futuro AP >0",    k:"citas_futuro",  oblig:true},
+        {l:"CNP otras esp =0",      k:"cnp_otras_0",   oblig:true},
+      ]},
+      dep:    { total:5, items:[
+        {l:"ING directos ≥0",       k:"ing_directos",  oblig:true},
+        {l:"CNP otras esp =0",      k:"cnp_otras_0",   oblig:true},
+        {l:"ENF AP >1",             k:"enf_ap_gt1",    oblig:true},
+        {l:"MED AP >1",             k:"med_ap_gt1",    oblig:true},
+        {l:"Domicilio AP >1",       k:"domicilio_gt1", oblig:true},
+      ]},
+      hfh:    { total:5, items:[
+        {l:"ENF AP >2",        k:"enf_ap_gt2",    oblig:true},
+        {l:"MED AP >2",        k:"med_ap_gt2",    oblig:true},
+        {l:"ENF PCRON >4",     k:"enf_pcron_gt4", oblig:true},
+        {l:"MED PCRON >4",     k:"med_pcron_gt4", oblig:true},
+        {l:"ING directos >0",  k:"ing_directos",  oblig:true},
+      ]},
+      hfap:   { total:2, items:[
+        {l:"ENF AP >6", k:"enf_ap_gt6", oblig:true},
+        {l:"MED AP >6", k:"med_ap_gt6", oblig:true},
+      ]},
+      comorb: { total:2, items:[
+        {l:"ENF AP >1", k:"enf_ap_gt1", oblig:true},
+        {l:"MED AP >1", k:"med_ap_gt1", oblig:true},
+      ]},
+      sano:   { total:2, items:[
+        {l:"ENF AP >0", k:"enf_ap_gt0", oblig:true},
+        {l:"MED AP >0", k:"med_ap_gt0", oblig:true},
+      ]},
+    }
+  },
+};
+
+// Devuelve el conjunto de criterios de auditoría para un paciente según su perfil principal
+function getAuditDef(pat) {
+  const p = pat.pal?"pal": pat.geron?"geron": pat.dep?"dep": pat.hfh?"hfh": pat.hfap?"hfap": pat.comorb?"comorb": pat.sano?"sano": null;
+  if (!p) return null;
+  return {
+    perfil: p,
+    estrat: AUDIT_DEF.estrat.perfiles[p] || null,
+    equipo: AUDIT_DEF.equipo.perfiles[p] || AUDIT_DEF.equipo.perfiles["_resto"],
+    form:   AUDIT_DEF.form.perfiles[p]   || null,
+    seg:    AUDIT_DEF.seg.perfiles[p]    || null,
+  };
+}
+
+// Criterios de PERFIL/POBLACIÓN — qué define que el paciente está en ese grupo
+const CRITERIOS_PERFIL = {
+  geron:  {label:"Gerontológico",       color:"#7C3AED", items:[
+    {l:"Marca GER OGP",                 k:"05-13-09-01"},
+    {l:"Alerta Institucionalizado",      k:"05-14-10-01"},
+    {l:"Año ingreso gerontológico",      k:"02-02-16-01"},
+    {l:"Centro gerontológico",           k:"02-02-16-02"},
+  ]},
+  pal:    {label:"Paliativo",           color:"#DC2626", items:[
+    {l:"Episodio PAL",                   k:"05-15-09-01"},
+    {l:"Alerta A PAL",                   k:"05-14-09-01"},
+    {l:"PIA PAL",                        k:"06-16-09-01"},
+    {l:"NECPAL positivo",                k:"06-16-09-02"},
+  ]},
+  dep:    {label:"Dependiente Domicilio",color:"#D97706", items:[
+    {l:"Barthel 6m <60",                 k:"06-15-05-01"},
+    {l:"Barthel 1año <80",               k:"06-15-05-02"},
+    {l:"Episodio Crónico Domiciliario",  k:"05-15-10-01"},
+    {l:"Alerta Crónico Domiciliario",    k:"05-14-10-02"},
+  ]},
+  hfh:    {label:"HF Hospitalario",    color:"#DC2626", items:[
+    {l:"Reingresos",                     k:"04-13-07-01"},
+    {l:"N ingresos MI >2",               k:"04-13-07-02"},
+    {l:"N ingresos OTRAS >2",            k:"04-13-07-03"},
+    {l:"HaD >2",                         k:"04-13-08-01"},
+    {l:"ING MI >10d",                    k:"04-13-07-04"},
+  ]},
+  hfap:   {label:"HF AP",              color:"#0891B2", items:[
+    {l:"ACT AP Médica",                  k:"04-12-05-01"},
+    {l:"ACT AP Enfermería",              k:"04-12-06-01"},
+  ]},
+  comorb: {label:"Mayor Comorbilidad", color:"#0891B2", items:[
+    {l:"IC total",                       k:"02-03-00-01"},
+    {l:"EPOC total",                     k:"02-03-00-02"},
+  ]},
+  sano:   {label:"Mayor Sano",         color:"#059669", items:[]},
+};
+
 function mapearPaciente(r) {
   const crit = r.criterios || {};
   const audit = crit['AUDITORIA'] || {};
@@ -1076,69 +1295,126 @@ function ModalPaciente({pat, canCIC, criteriosData, loadedGrupos, onLoadGrupo, o
         {/* ── CUERPO DEL MODAL ── */}
         <div style={{padding:"16px 20px",maxHeight:"72vh",overflowY:"auto"}}>
 
-          {/* ① GRUPO DE POBLACIÓN */}
-          <div style={{marginBottom:14,padding:"12px 16px",background:"#F8FAFC",borderRadius:10,border:"1px solid #E2E8F0"}}>
-            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>① Grupo de Población</div>
-            <PobBadge pob={pat.pob}/>
-            {!pat.pob && <span style={{fontSize:12,color:"#94A3B8",fontStyle:"italic"}}>Sin grupo asignado — ejecuta el Colab para calcular</span>}
-          </div>
-
-          {/* ② PERFILES + CRITERIOS POSITIVOS INLINE */}
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>② Características · Criterios positivos por perfil</div>
-            {ac.length===0 ? (
-              <div style={{padding:"12px 16px",background:"#F8FAFC",borderRadius:8,fontSize:12,color:"#94A3B8",fontStyle:"italic"}}>Sin características activas</div>
-            ) : ac.map(caract=>{
-              const perfilData = CRITERIOS_PERFIL[caract.k];
-              // Criterios positivos: buscamos en _criterios raw del paciente
+          {/* ══════════════════════════════════════════
+              ① PERFIL / POBLACIÓN
+              Por qué está en este grupo (criterios de clasificación)
+          ══════════════════════════════════════════ */}
+          <div style={{marginBottom:16,padding:"12px 16px",background:"#F8FAFC",borderRadius:10,border:"1px solid #E2E8F0"}}>
+            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>
+              📋 Perfil · Grupo de Población
+            </div>
+            {/* Grupo principal */}
+            <div style={{marginBottom:8}}>
+              <PobBadge pob={pat.pob}/>
+              {!pat.pob && <span style={{fontSize:12,color:"#94A3B8",fontStyle:"italic"}}>Sin grupo asignado</span>}
+            </div>
+            {/* Características activas */}
+            {ac.length>0 && (
+              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
+                {ac.map(c=>(
+                  <span key={c.k} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,
+                    background:c.c+"20",color:c.c,border:`1px solid ${c.c}40`}}>
+                    ● {c.l}
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Criterios de clasificación — por qué está en este perfil */}
+            {ac.length>0 && (() => {
               const raw = pat._criterios || {};
-              const positivos = perfilData ? perfilData.dims.flatMap(d=>d.items).filter(cr=>{
-                const v = raw[cr.col] || getC(raw, cr.col);
-                return esSi(v);
-              }) : [];
-              return (
-                <div key={caract.k} style={{marginBottom:8,border:`1px solid ${caract.c}25`,borderRadius:9,overflow:"hidden"}}>
-                  {/* Cabecera perfil */}
-                  <div style={{padding:"7px 12px",background:caract.c+"10",display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:caract.c,flexShrink:0}}/>
-                    <span style={{fontSize:12,fontWeight:800,color:caract.c,flex:1}}>{caract.l}</span>
-                    <span style={{fontSize:10,color:caract.c,background:caract.c+"15",padding:"1px 8px",borderRadius:10,fontWeight:700}}>
-                      {positivos.length} criterio{positivos.length!==1?"s":""} positivo{positivos.length!==1?"s":""}
-                    </span>
+              // Para cada característica activa, mostramos sus criterios definitorios
+              const CRIT_PERFIL = {
+                geron: [
+                  {l:"Marca OGP",         k:"02-02-12-01"},
+                  {l:"Alerta Institucionalizado", k:"02-02-14-01"},
+                  {l:"Año Ingreso",        k:"02-02-16-01"},
+                  {l:"Centro Geron.",      k:"02-02-16-02"},
+                ],
+                pal: [
+                  {l:"Episodio Paliativo", k:"02-04-13-01"},
+                  {l:"Alerta Paliativo",   k:"02-04-14-01"},
+                  {l:"PIA Paliativo",      k:"02-04-15-01"},
+                  {l:"NECPAL Positivo",    k:"02-04-15-04"},
+                  {l:"Frágil-Vig >0.48",  k:"02-04-15-05"},
+                ],
+                dep: [
+                  {l:"Episodio Crónico Dom.", k:"02-05-13-01"},
+                  {l:"Episodio Demencia",    k:"02-05-13-02"},
+                  {l:"Alerta Crónico Dom.",  k:"02-05-14-01"},
+                  {l:"Barthel Actual",       k:"02-05-00-01"},
+                  {l:"Barthel Basal",        k:"02-05-00-02"},
+                ],
+                hfh: [
+                  {l:"Reingresos",          k:"02-07-07-01"},
+                  {l:"N ingresos MI",       k:"02-07-07-02"},
+                  {l:"N ingresos Otras",    k:"02-07-07-03"},
+                  {l:"HaD",                 k:"02-07-07-05"},
+                  {l:"Ing. MI >10d",        k:"02-07-07-07"},
+                ],
+                hfap: [
+                  {l:"Frec. AP Médica",     k:"02-06-06-01"},
+                  {l:"Frec. AP Enfermería", k:"02-06-06-02"},
+                ],
+                comorb: [
+                  {l:"IC Total",            k:"02-03-00-01"},
+                  {l:"EPOC Total",          k:"02-03-00-02"},
+                  {l:"Episodio IC",         k:"02-03-13-01"},
+                  {l:"Episodio EPOC",       k:"02-03-13-02"},
+                  {l:"Alerta IC",           k:"02-03-14-02"},
+                  {l:"Alerta EPOC",         k:"02-03-14-01"},
+                ],
+                sano:  [{l:"Form PAM Mayor sano", k:"02-01-15-05"}],
+                may85: [{l:"Edad > 85", k:"_edad"}],
+                polimed:[{l:"Polimedicación ≥7", k:"02-01-17-05"}],
+                social:[
+                  {l:"CNP a UGS",           k:"02-09-01-01"},
+                  {l:"IC a UGS",            k:"02-09-02-02"},
+                  {l:"Osanaia Cuidados",    k:"02-09-11-01"},
+                  {l:"Nivel Socioeconómico",k:"02-09-16-01"},
+                ],
+              };
+              return ac.map(caract => {
+                const crits = CRIT_PERFIL[caract.k] || [];
+                const positivos = crits.filter(cr => {
+                  if(cr.k==="_edad") return pat.edad>85;
+                  const v = getC(raw, cr.k);
+                  return v && v!=="0" && v!==0 && v!=="No" && v!=="NO";
+                });
+                if(!positivos.length && !crits.length) return null;
+                return (
+                  <div key={caract.k} style={{marginBottom:6,borderRadius:7,overflow:"hidden",border:`1px solid ${caract.c}20`}}>
+                    <div style={{padding:"4px 10px",background:caract.c+"10",fontSize:9,fontWeight:800,color:caract.c,textTransform:"uppercase",letterSpacing:.5}}>
+                      {caract.l} — criterios positivos
+                    </div>
+                    <div style={{padding:"6px 10px",display:"flex",flexWrap:"wrap",gap:3}}>
+                      {positivos.length>0 ? positivos.map((cr,i)=>(
+                        <span key={i} style={{fontSize:10,padding:"2px 7px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:4,color:"#065F46",fontWeight:600}}>✓ {cr.l}</span>
+                      )) : (
+                        <span style={{fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>Criterios pendientes de cargar</span>
+                      )}
+                    </div>
                   </div>
-                  {/* Criterios positivos */}
-                  {positivos.length>0 && (
-                    <div style={{padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:4}}>
-                      {positivos.map((cr,i)=>(
-                        <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,padding:"3px 9px",
-                          background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:5,color:"#065F46",fontWeight:600}}>
-                          ✓ {cr.l}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {positivos.length===0 && (
-                    <div style={{padding:"6px 12px",fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>
-                      Los criterios de este perfil no están cargados o no hay positivos registrados
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
 
-          {/* ③ ÍNDICES */}
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>③ Índices de Complejidad</div>
+          {/* ══════════════════════════════════════════
+              ③ ÍNDICES DE COMPLEJIDAD
+          ══════════════════════════════════════════ */}
+          <div>
+            <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>
+              📊 Índices de Complejidad
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
               {[
                 ["Comorbilidad",  pat.co,    10, "#0891B2"],
                 ["Frecuentación", pat.fr,    10, "#D97706"],
                 ["Complejidad",   pat.compl, 20, "#6366F1"],
               ].map(([lbl,val,max,color])=>{
-                const pct2 = Math.min((val||0)/max*100,100);
-                const nivel = pct2>60?"Alto":pct2>35?"Moderado":"Bajo";
-                const nc = pct2>60?"#DC2626":pct2>35?"#D97706":"#059669";
+                const pct2=Math.min((val||0)/max*100,100);
+                const nivel=pct2>60?"Alto":pct2>35?"Moderado":"Bajo";
+                const nc=pct2>60?"#DC2626":pct2>35?"#D97706":"#059669";
                 return (
                   <div key={lbl} style={{background:color+"08",border:`1px solid ${color}20`,borderRadius:9,padding:"10px 12px"}}>
                     <div style={{fontSize:9,fontWeight:800,color,letterSpacing:.5,textTransform:"uppercase",marginBottom:4}}>{lbl}</div>
@@ -1149,53 +1425,65 @@ function ModalPaciente({pat, canCIC, criteriosData, loadedGrupos, onLoadGrupo, o
                     <div style={{height:5,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}>
                       <div style={{height:"100%",width:pct2+"%",background:color,borderRadius:3,transition:"width .4s"}}/>
                     </div>
-                    <div style={{fontSize:8,color:"#94A3B8",marginTop:3}}>max referencia: {max}</div>
+                    <div style={{fontSize:8,color:"#94A3B8",marginTop:3}}>max ref: {max}</div>
                   </div>
                 );
               })}
             </div>
           </div>
-
-          {/* ④ AUDITORÍA 4 DIMENSIONES */}
-          <div>
+          {/* ══════════════════════════════════════════
+              ④ AUDITORÍA DE CALIDAD — 4 dimensiones
+              Requisitos de atención por perfil: qué cumple y qué falta
+          ══════════════════════════════════════════ */}
+          <div style={{marginBottom:16}}>
             <div style={{fontSize:9,fontWeight:700,color:"#64748B",letterSpacing:1,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
-              ④ Auditoría de Calidad
+              🔍 Auditoría de Calidad — Requisitos por Perfil
               {pat.audit_pend?.length>0 && (
                 <span style={{fontSize:9,fontWeight:700,color:"#DC2626",background:"#FEE2E2",padding:"1px 8px",borderRadius:10,textTransform:"none"}}>
-                  ⚠️ {pat.audit_pend.length} pendiente{pat.audit_pend.length>1?"s":""}
+                  ⚠️ {pat.audit_pend.length} pendiente{pat.audit_pend.length!==1?"s":""}
                 </span>
               )}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
               {[
-                [pat.audit_estrat, "1 · Estratificación"],
-                [pat.audit_equipo, "2 · Equipo Referencia"],
-                [pat.audit_form,   "3 · Formularios"],
-                [pat.audit_seg,    "4 · Seguimiento"],
+                [pat.audit_estrat, "1 · Estratificación",  "06-18-00-01"],
+                [pat.audit_equipo, "2 · Equipo Referencia","06-18-00-02"],
+                [pat.audit_form,   "3 · Formularios",      "06-18-00-03"],
+                [pat.audit_seg,    "4 · Seguimiento",      "06-18-00-04"],
               ].map(([dim,label])=>{
-                if (!dim || !dim.total) return (
-                  <div key={label} style={{padding:"8px 12px",background:"#F8FAFC",borderRadius:8,border:"1px solid #E2E8F0"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:3}}>{label}</div>
+                const colMap={VERDE:"#059669",AMARILLO:"#D97706",NARANJA:"#EA580C",ROJO:"#DC2626"};
+                const bgMap ={VERDE:"#D1FAE5",AMARILLO:"#FEF3C7",NARANJA:"#FFF7ED",ROJO:"#FEE2E2"};
+                if(!dim||!dim.total) return (
+                  <div key={label} style={{padding:"10px 12px",background:"#F8FAFC",borderRadius:8,border:"1px solid #E2E8F0"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:4}}>{label}</div>
                     <div style={{fontSize:11,color:"#CBD5E1",fontStyle:"italic"}}>Sin datos</div>
                   </div>
                 );
-                const colMap={VERDE:"#059669",AMARILLO:"#D97706",NARANJA:"#EA580C",ROJO:"#DC2626"};
-                const bgMap ={VERDE:"#D1FAE5",AMARILLO:"#FEF3C7",NARANJA:"#FFF7ED",ROJO:"#FEE2E2"};
                 const c  = colMap[dim.color]||"#94A3B8";
                 const bg = bgMap[dim.color]||"#F8FAFC";
                 return (
-                  <div key={label} style={{padding:"8px 12px",background:bg,borderRadius:8,border:`1px solid ${c}30`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div key={label} style={{padding:"10px 12px",background:bg,borderRadius:8,border:`1px solid ${c}30`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                       <div style={{fontSize:9,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:.5}}>{label}</div>
                       <span style={{fontSize:9,fontWeight:800,padding:"1px 7px",borderRadius:10,background:c+"25",color:c}}>{dim.color}</span>
                     </div>
-                    <div style={{fontSize:18,fontWeight:900,color:c,lineHeight:1}}>{dim.pct}%
+                    <div style={{fontSize:20,fontWeight:900,color:c,lineHeight:1,marginBottom:6}}>
+                      {dim.pct}%
                       <span style={{fontSize:10,fontWeight:400,color:"#94A3B8",marginLeft:5}}>{dim.cumplidos}/{dim.total}</span>
                     </div>
+                    {/* Requisitos cumplidos */}
+                    {dim.ok?.length>0 && (
+                      <div style={{marginBottom:4,display:"flex",flexWrap:"wrap",gap:2}}>
+                        {dim.ok.map((f,i)=>(
+                          <span key={i} style={{fontSize:9,padding:"2px 6px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:3,color:"#065F46"}}>✓ {f}</span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Requisitos pendientes */}
                     {dim.falta?.length>0 && (
-                      <div style={{marginTop:5,display:"flex",flexWrap:"wrap",gap:3}}>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
                         {dim.falta.map((f,i)=>(
-                          <span key={i} style={{fontSize:9,padding:"2px 6px",background:"rgba(0,0,0,0.06)",borderRadius:4,color:"#64748B"}}>✗ {f}</span>
+                          <span key={i} style={{fontSize:9,padding:"2px 6px",background:"rgba(0,0,0,0.06)",border:"1px solid #FECACA",borderRadius:3,color:"#991B1B"}}>✗ {f}</span>
                         ))}
                       </div>
                     )}
@@ -1203,24 +1491,26 @@ function ModalPaciente({pat, canCIC, criteriosData, loadedGrupos, onLoadGrupo, o
                 );
               })}
             </div>
-
-            {/* Resumen pendientes */}
-            {pat.audit_pend?.length>0 ? (
-              <div style={{padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#92400E",marginBottom:6}}>⚠️ PENDIENTES GLOBALES ({pat.audit_pend.length})</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                  {pat.audit_pend.map((e,i)=>(
-                    <span key={i} style={{fontSize:10,padding:"3px 8px",background:"white",border:"1px solid #FCD34D",borderRadius:5,color:"#92400E",fontWeight:500}}>● {e}</span>
-                  ))}
+            {/* Resumen pendientes globales */}
+            <div style={{marginTop:8}}>
+              {pat.audit_pend?.length>0 ? (
+                <div style={{padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#92400E",marginBottom:6}}>⚠️ PENDIENTES GLOBALES</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {pat.audit_pend.map((e,i)=>(
+                      <span key={i} style={{fontSize:10,padding:"3px 8px",background:"white",border:"1px solid #FCD34D",borderRadius:5,color:"#92400E",fontWeight:500}}>● {e}</span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:8}}>
-                <span style={{fontSize:16}}>✅</span>
-                <span style={{fontSize:12,color:"#065F46",fontWeight:600}}>Auditoría completa — Sin elementos pendientes</span>
-              </div>
-            )}
+              ) : (
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:8}}>
+                  <span style={{fontSize:16}}>✅</span>
+                  <span style={{fontSize:12,color:"#065F46",fontWeight:600}}>Auditoría completa — Sin elementos pendientes</span>
+                </div>
+              )}
+            </div>
           </div>
+
 
         </div>
       </div>
