@@ -534,8 +534,9 @@ async function cargarTodosPacientes(onProgress) {
 // Fase 2: carga criterios JSONB en background, actualiza pacientes progresivamente
 
 async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
+  console.log("🔍 Iniciando carga criterios background, pacientes:", pacientes.length);
   const sb = await getSupabase();
-  if (!sb) return;
+  if (!sb) { console.error("🔍 Sin supabase"); return; }
   const batchSize = 300;
   let offset = 0, total = pacientes.length;
   const idxMap = {};
@@ -769,7 +770,13 @@ function getAuditDef(pat) {
 
 
 // Mapeo desde PACIENTES_VISTA (campos planos, sin JSONB)
+let _debugLogged = false;
 function mapearPacienteVista(r) {
+  if (!_debugLogged) {
+    _debugLogged = true;
+    console.log("🔍 PRIMERA FILA SUPABASE RAW:", JSON.stringify(r, null, 2));
+    console.log("🔍 CAMPOS:", Object.keys(r));
+  }
   const audit = r.auditoria || {};
 
   let osi = r.comarca_osi || '';
