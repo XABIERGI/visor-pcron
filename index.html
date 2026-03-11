@@ -508,7 +508,8 @@ async function cargarTodosPacientes(onProgress) {
   if (!sb) return [];
   const batchSize = 1000;
   let all = [], offset = 0, hasMore = true;
-  const colsBasicas = "id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo,criterios";
+  // Solo columnas básicas — criterios (122MB JSONB) se cargan en segundo plano
+  const colsBasicas = "id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo";
   while (hasMore) {
     const {data, error} = await sb
       .from("PACIENTES")
@@ -1060,7 +1061,7 @@ function PantallaCarga({progreso, error, onRetry}) {
         ) : (
           <div style={{width:320}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-              <span style={{color:"#93C5FD",fontSize:12}}>Cargando {nFmt(META.totalBD)} pacientes…</span>
+              <span style={{color:"#93C5FD",fontSize:12}}>Cargando pacientes…</span>
               <span style={{color:"#3B82F6",fontWeight:700,fontSize:12}}>{progreso}%</span>
             </div>
             <div style={{height:8,background:"rgba(255,255,255,0.1)",borderRadius:4,overflow:"hidden"}}>
