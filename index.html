@@ -1189,7 +1189,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
         <Seccion k="top" label="TOP Adecuación %">
           <div style={{fontSize:11,color:"#64748B",marginBottom:6}}>Rango de adecuación TOP</div>
-          <div style={{display:"flex",gap:4"}}>
+          <div style={{display:"flex",gap:4}}>
             {[["≥ 80 (Bueno)","≥80",p=>p.top_adec>=80],["60–79 (Medio)","60-79",p=>p.top_adec>=60&&p.top_adec<80],["< 60 (Bajo)","<60",p=>p.top_adec<60]].map(([l,v])=>(
               <button key={v} onClick={()=>addFiltro({campo:"top_adec",label:`TOP ${v}%`,tipo:"range",min:v.startsWith("≥")?parseInt(v.slice(1)):v.startsWith("<")?0:60,max:v.startsWith("≥")?100:v.startsWith("<")?59:79})}
                 style={{flex:1,padding:"4px 6px",fontSize:10,border:"1px solid #E2E8F0",borderRadius:4,background:"white",cursor:"pointer",color:"#475569"}}>{l}</button>
