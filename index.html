@@ -508,8 +508,7 @@ async function cargarTodosPacientes(onProgress) {
   if (!sb) return [];
   const batchSize = 1000;
   let all = [], offset = 0, hasMore = true;
-  // Solo columnas básicas — criterios (122MB JSONB) se cargan en segundo plano
-  const colsBasicas = "id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo";
+  const colsBasicas = "id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo,criterios";
   while (hasMore) {
     const {data, error} = await sb
       .from("PACIENTES")
@@ -533,7 +532,7 @@ async function cargarTodosPacientes(onProgress) {
 async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
   const sb = await getSupabase();
   if (!sb) return;
-  const batchSize = 2000;
+  const batchSize = 200; // Supabase .in() tiene límite de URL — máx ~200 IDs
   let offset = 0, total = pacientes.length;
   // Mapa id→índice para updates rápidos
   const idxMap = {};
@@ -547,25 +546,24 @@ async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
       .in("id_paciente", ids);
     if (error || !data) { offset += batchSize; continue; }
 
-    // Merge criterios into existing pacientes
+    // Merge criterios into existing pacientes — remap completo
     const updates = {};
     data.forEach(row => {
-      const crit = row.criterios || {};
       const idx = idxMap[row.id_paciente];
       if (idx === undefined) return;
       const p = pacientes[idx];
-      // Re-mapear con criterios completos
-      const updated = {
-        ...p,
-        medico:      getC(crit,'04-13-03-03') || p.medico || '',
-        bloque:      getC(crit,'04-13-03-02') || p.bloque || '',
-        centro_ger:  getC(crit,'02-02-16-02') || p.centro_ger || '',
-        co:    parseFloat(getC(crit,'05-19-00-13')) || p.co    || 0,
-        fr:    parseFloat(getC(crit,'05-19-00-14')) || p.fr    || 0,
-        compl: parseFloat(getC(crit,'05-19-00-15')) || p.compl || 0,
-        _criterios: crit,
+      // Reconstruir fila completa con columnas básicas + criterios descargados
+      const fullRow = {
+        id_paciente: p.id,
+        cic:         p.cic,
+        edad:        p.edad,
+        sexo:        p.sexo === 'H' ? 'Hombre' : 'Mujer',
+        comarca_osi: p.osi,
+        centro:      p.centro,
+        codigo_cupo: p.cupo,
+        criterios:   row.criterios || {},
       };
-      updates[idx] = updated;
+      updates[idx] = mapearPaciente(fullRow);
     });
     onBatch(updates);
     offset += batchSize;
@@ -3878,16 +3876,6 @@ function App() {
       // Carga criterios en segundo plano
       if(data.length>0){
         setCriteriosPct(0);
-        await cargarCriteriosBackground(
-          pacs,
-          pct=>setCriteriosPct(pct),
-          updates=>setPacientes(prev=>{
-            const next=[...prev];
-            Object.entries(updates).forEach(([idx,p])=>{next[Number(idx)]=p;});
-            return next;
-          })
-        );
-        setCriteriosPct(100);
       }
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
@@ -3993,17 +3981,7 @@ function App() {
               ⚠️ MODO DEMO
             </div>
           )}
-          {criteriosPct!==null&&criteriosPct<100&&(
-            <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(59,130,246,0.15)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:5,padding:"3px 10px"}}>
-              <div style={{width:60,height:4,background:"rgba(255,255,255,0.1)",borderRadius:2,overflow:"hidden"}}>
-                <div style={{height:"100%",width:criteriosPct+"%",background:"#3B82F6",borderRadius:2,transition:"width .3s"}}/>
-              </div>
-              <span style={{fontSize:9,color:"#93C5FD",fontWeight:700}}>Criterios {criteriosPct}%</span>
-            </div>
-          )}
-          {criteriosPct===100&&(
-            <span style={{fontSize:9,color:"#6EE7B7",fontWeight:700}}>✓ Criterios cargados</span>
-          )}
+
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:12,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
             <div style={{fontSize:9,color:"#93C5FD",fontWeight:600}}>{authUser?.rol} · {authUser?.email}</div>
