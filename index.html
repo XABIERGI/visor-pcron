@@ -2754,6 +2754,296 @@ function TabAnalisis({pacientes,savedAnalisis,setSavedAnalisis}) {
 // ════════════════════════════════════════════════════════════════════════════
 // ⓬  TAB ADMINISTRACIÓN — Solo rol ADM (4 sub-secciones completas)
 // ════════════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════════════
+// 📅  TAB HISTÓRICO
+// ════════════════════════════════════════════════════════════════════════════
+function TabHistorico() {
+  const [meses,     setMeses]     = React.useState([]);
+  const [mesA,      setMesA]      = React.useState(null); // mes actual (más reciente)
+  const [mesB,      setMesB]      = React.useState(null); // mes anterior
+  const [loading,   setLoading]   = React.useState(true);
+  const [dataA,     setDataA]     = React.useState([]);
+  const [dataB,     setDataB]     = React.useState([]);
+  const [subTab,    setSubTab]    = React.useState("resumen");
+  const [filtPob,   setFiltPob]   = React.useState("");
+  const [filtCambio,setFiltCambio]= React.useState("todos"); // todos|sube|baja
+  const [filtGrado, setFiltGrado] = React.useState(0);
+
+  // Cargar lista de meses disponibles
+  React.useEffect(()=>{
+    (async()=>{
+      const sb = await getSupabase();
+      if(!sb) return;
+      const {data} = await sb.from("HISTORICO").select("fecha_mes").order("fecha_mes",{ascending:false});
+      if(!data) return;
+      const unicos = [...new Set(data.map(r=>r.fecha_mes))].sort((a,b)=>b.localeCompare(a));
+      setMeses(unicos);
+      if(unicos.length>0) setMesA(unicos[0]);
+      if(unicos.length>1) setMesB(unicos[1]);
+    })();
+  },[]);
+
+  // Cargar datos del mes seleccionado
+  React.useEffect(()=>{
+    if(!mesA) return;
+    (async()=>{
+      setLoading(true);
+      const sb = await getSupabase();
+      if(!sb){setLoading(false);return;}
+      const {data:dA} = await sb.from("HISTORICO")
+        .select("id_paciente,edad,comarca_osi,centro,codigo_cupo,poblacion_diana,poblacion_grupo,caract_geron,caract_pal,caract_dep,caract_hfh,caract_hfap,caract_mayor_comorb,caract_mayor_sano,caract_demograficos,idx_complejidad")
+        .eq("fecha_mes", mesA);
+      setDataA(dA||[]);
+      if(mesB){
+        const {data:dB} = await sb.from("HISTORICO")
+          .select("id_paciente,poblacion_grupo,idx_complejidad")
+          .eq("fecha_mes", mesB);
+        setDataB(dB||[]);
+      }
+      setLoading(false);
+    })();
+  },[mesA,mesB]);
+
+  const fmtMes = m => m ? new Date(m+"T00:00:00").toLocaleDateString("es-ES",{month:"long",year:"numeric"}) : "—";
+  const nFmt   = n => n?.toLocaleString("es-ES")||"0";
+  const hayDos = meses.length>=2 && mesB && dataB.length>0;
+
+  // Calcular comparativas
+  const idsA = React.useMemo(()=>new Set(dataA.map(p=>p.id_paciente)),[dataA]);
+  const idsB = React.useMemo(()=>new Set(dataB.map(p=>p.id_paciente)),[dataB]);
+  const mapB  = React.useMemo(()=>{const m={}; dataB.forEach(p=>{m[p.id_paciente]=p;}); return m;},[dataB]);
+
+  const nuevos      = React.useMemo(()=>hayDos?dataA.filter(p=>!idsB.has(p.id_paciente)):[], [dataA,idsB,hayDos]);
+  const desaparec   = React.useMemo(()=>hayDos?dataB.filter(p=>!idsA.has(p.id_paciente)):[], [dataB,idsA,hayDos]);
+  const cambiados   = React.useMemo(()=>{
+    if(!hayDos) return [];
+    return dataA.filter(p=>{
+      const prev = mapB[p.id_paciente];
+      if(!prev) return false;
+      return prev.poblacion_grupo !== p.poblacion_grupo || (Math.abs((p.idx_complejidad||0)-(prev.idx_complejidad||0))>0.5);
+    }).map(p=>({
+      ...p,
+      pob_prev:    mapB[p.id_paciente]?.poblacion_grupo||"—",
+      idx_prev:    mapB[p.id_paciente]?.idx_complejidad||0,
+      delta_idx:   (p.idx_complejidad||0)-(mapB[p.id_paciente]?.idx_complejidad||0),
+    }));
+  },[dataA,mapB,hayDos]);
+
+  // Agrupación por campo
+  const agrupar = (arr, campo) => {
+    const map = {};
+    arr.forEach(p=>{
+      const k = p[campo]||"Sin dato";
+      map[k] = (map[k]||0)+1;
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  };
+
+  // Exportar Excel
+  const exportar = (arr, nombre) => {
+    if(!arr.length) return;
+    const cols = ["id_paciente","edad","comarca_osi","centro","codigo_cupo","poblacion_grupo","pob_prev","delta_idx"];
+    const rows = arr.map(p=>cols.map(c=>p[c]??"")); 
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([cols,...rows]);
+    XLSX.utils.book_append_sheet(wb, ws, nombre.slice(0,31));
+    XLSX.writeFile(wb, `${nombre}_${mesA}.xlsx`);
+  };
+
+  const camFiltrados = React.useMemo(()=>{
+    let r = cambiados;
+    if(filtPob)  r = r.filter(p=>p.poblacion_grupo===filtPob||p.pob_prev===filtPob);
+    if(filtCambio==="sube") r = r.filter(p=>p.delta_idx>filtGrado);
+    if(filtCambio==="baja") r = r.filter(p=>p.delta_idx<-filtGrado);
+    return r;
+  },[cambiados,filtPob,filtCambio,filtGrado]);
+
+  const STY = {
+    card:  {background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"14px 16px",marginBottom:12},
+    h2:    {fontSize:13,fontWeight:800,color:"#0F2444",marginBottom:10,display:"flex",alignItems:"center",gap:6},
+    badge: (c)=>({fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:c+"15",color:c,border:`1px solid ${c}30`}),
+    subBtn:(on)=>({padding:"6px 14px",fontSize:11,fontWeight:on?700:500,border:"none",borderRadius:6,
+      background:on?"#1D4ED8":"transparent",color:on?"white":"#64748B",cursor:"pointer"}),
+    expBtn:{padding:"5px 12px",fontSize:10,fontWeight:700,background:"#059669",border:"none",borderRadius:5,color:"white",cursor:"pointer"},
+    noData:{padding:"32px",textAlign:"center",color:"#94A3B8",fontSize:12,fontStyle:"italic"},
+  };
+
+  const GrupoTable = ({arr,titulo,color}) => {
+    if(!arr.length) return <div style={STY.noData}>Sin datos</div>;
+    return (
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {[["comarca_osi","OSI"],["centro","Centro"],["codigo_cupo","Cupo"],["poblacion_grupo","Grupo Población"]].map(([campo,lbl])=>(
+          <div key={campo}>
+            <div style={{fontSize:9,fontWeight:700,color:"#94A3B8",letterSpacing:.8,textTransform:"uppercase",marginBottom:4}}>{lbl}</div>
+            <div style={{maxHeight:140,overflowY:"auto"}}>
+              {agrupar(arr,campo).slice(0,15).map(([k,n])=>(
+                <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",borderBottom:"1px solid #F1F5F9",fontSize:11}}>
+                  <span style={{color:"#374151",truncate:true}}>{k}</span>
+                  <span style={{fontWeight:700,color}}>{nFmt(n)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if(loading) return <div style={{padding:40,textAlign:"center",color:"#94A3B8"}}>⏳ Cargando histórico…</div>;
+
+  return (
+    <div style={{padding:"16px 20px",maxWidth:960,margin:"0 auto"}}>
+
+      {/* Selector de meses */}
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,padding:"12px 16px",background:"white",borderRadius:10,border:"1px solid #E2E8F0"}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#0F2444"}}>📅 Histórico PCRON</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:11,color:"#64748B"}}>Mes actual:</span>
+          <select value={mesA||""} onChange={e=>setMesA(e.target.value)}
+            style={{fontSize:11,border:"1px solid #E2E8F0",borderRadius:5,padding:"3px 8px",background:"white"}}>
+            {meses.map(m=><option key={m} value={m}>{fmtMes(m)} ({m})</option>)}
+          </select>
+        </div>
+        {meses.length>1 && (
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:11,color:"#64748B"}}>Comparar con:</span>
+            <select value={mesB||""} onChange={e=>setMesB(e.target.value)}
+              style={{fontSize:11,border:"1px solid #E2E8F0",borderRadius:5,padding:"3px 8px",background:"white"}}>
+              <option value="">— ninguno —</option>
+              {meses.filter(m=>m!==mesA).map(m=><option key={m} value={m}>{fmtMes(m)} ({m})</option>)}
+            </select>
+          </div>
+        )}
+        <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+          {["resumen","nuevos","desaparecidos","cambios"].map(t=>(
+            <button key={t} onClick={()=>setSubTab(t)} style={STY.subBtn(subTab===t)}>
+              {{resumen:"📊 Resumen",nuevos:"🆕 Nuevos",desaparecidos:"👋 Desaparecidos",cambios:"🔄 Cambios"}[t]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* RESUMEN */}
+      {subTab==="resumen" && (
+        <div>
+          <div style={STY.card}>
+            <div style={STY.h2}>
+              📊 Snapshot — {fmtMes(mesA)}
+              <span style={STY.badge("#3B82F6")}>{nFmt(dataA.length)} pacientes</span>
+              <button onClick={()=>exportar(dataA,"resumen")} style={{...STY.expBtn,marginLeft:"auto"}}>⬇ Exportar</button>
+            </div>
+            <GrupoTable arr={dataA} color="#3B82F6"/>
+          </div>
+        </div>
+      )}
+
+      {/* NUEVOS */}
+      {subTab==="nuevos" && (
+        <div style={STY.card}>
+          <div style={STY.h2}>
+            🆕 Pacientes Nuevos
+            {hayDos ? <span style={STY.badge("#059669")}>{nFmt(nuevos.length)} nuevos vs {fmtMes(mesB)}</span>
+              : <span style={STY.badge("#94A3B8")}>Requiere 2 meses</span>}
+            {hayDos && <button onClick={()=>exportar(nuevos,"nuevos")} style={{...STY.expBtn,marginLeft:"auto"}}>⬇ Exportar</button>}
+          </div>
+          {!hayDos
+            ? <div style={STY.noData}>Disponible cuando haya al menos 2 meses de datos en el histórico.</div>
+            : <GrupoTable arr={nuevos} color="#059669"/>}
+        </div>
+      )}
+
+      {/* DESAPARECIDOS */}
+      {subTab==="desaparecidos" && (
+        <div style={STY.card}>
+          <div style={STY.h2}>
+            👋 Pacientes Desaparecidos
+            {hayDos ? <span style={STY.badge("#DC2626")}>{nFmt(desaparec.length)} vs {fmtMes(mesB)}</span>
+              : <span style={STY.badge("#94A3B8")}>Requiere 2 meses</span>}
+            {hayDos && <button onClick={()=>exportar(desaparec,"desaparecidos")} style={{...STY.expBtn,background:"#DC2626",marginLeft:"auto"}}>⬇ Exportar</button>}
+          </div>
+          {!hayDos
+            ? <div style={STY.noData}>Disponible cuando haya al menos 2 meses de datos en el histórico.</div>
+            : <GrupoTable arr={desaparec} color="#DC2626"/>}
+        </div>
+      )}
+
+      {/* CAMBIOS */}
+      {subTab==="cambios" && (
+        <div style={STY.card}>
+          <div style={STY.h2}>
+            🔄 Cambios de Población / Complejidad
+            {hayDos ? <span style={STY.badge("#D97706")}>{nFmt(camFiltrados.length)} pacientes</span>
+              : <span style={STY.badge("#94A3B8")}>Requiere 2 meses</span>}
+            {hayDos && <button onClick={()=>exportar(camFiltrados,"cambios")} style={{...STY.expBtn,background:"#D97706",marginLeft:"auto"}}>⬇ Exportar</button>}
+          </div>
+          {!hayDos
+            ? <div style={STY.noData}>Disponible cuando haya al menos 2 meses de datos en el histórico.</div>
+            : <>
+              {/* Filtros */}
+              <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+                <select value={filtPob} onChange={e=>setFiltPob(e.target.value)}
+                  style={{fontSize:11,border:"1px solid #E2E8F0",borderRadius:5,padding:"3px 8px"}}>
+                  <option value="">Todos los grupos</option>
+                  {[...new Set(cambiados.map(p=>p.poblacion_grupo).filter(Boolean))].sort().map(p=>(
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <select value={filtCambio} onChange={e=>setFiltCambio(e.target.value)}
+                  style={{fontSize:11,border:"1px solid #E2E8F0",borderRadius:5,padding:"3px 8px"}}>
+                  <option value="todos">Todos los cambios</option>
+                  <option value="sube">↑ Aumenta complejidad</option>
+                  <option value="baja">↓ Disminuye complejidad</option>
+                </select>
+                {filtCambio!=="todos" && (
+                  <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+                    <span style={{color:"#64748B"}}>Grado mínimo:</span>
+                    <input type="number" min={0} max={20} step={0.5} value={filtGrado}
+                      onChange={e=>setFiltGrado(parseFloat(e.target.value)||0)}
+                      style={{width:60,padding:"3px 6px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11}}/>
+                  </div>
+                )}
+              </div>
+              {/* Tabla */}
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                  <thead>
+                    <tr style={{background:"#F8FAFC"}}>
+                      {["ID Paciente","OSI","Centro","Cupo","Grupo Actual","Grupo Anterior","Idx Actual","Idx Anterior","Δ Idx"].map(h=>(
+                        <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:700,color:"#475569",borderBottom:"2px solid #E2E8F0",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {camFiltrados.slice(0,200).map((p,i)=>{
+                      const delta = p.delta_idx||0;
+                      const dc = delta>0?"#059669":delta<0?"#DC2626":"#94A3B8";
+                      return (
+                        <tr key={p.id_paciente} style={{background:i%2===0?"white":"#F8FAFC"}}>
+                          <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#1E293B"}}>{p.id_paciente}</td>
+                          <td style={{padding:"4px 8px",color:"#374151"}}>{p.comarca_osi||"—"}</td>
+                          <td style={{padding:"4px 8px",color:"#374151"}}>{p.centro||"—"}</td>
+                          <td style={{padding:"4px 8px",color:"#374151"}}>{p.codigo_cupo||"—"}</td>
+                          <td style={{padding:"4px 8px"}}><span style={STY.badge("#3B82F6")}>{p.poblacion_grupo||"—"}</span></td>
+                          <td style={{padding:"4px 8px"}}><span style={STY.badge("#64748B")}>{p.pob_prev||"—"}</span></td>
+                          <td style={{padding:"4px 8px",fontWeight:700,color:"#374151"}}>{(p.idx_complejidad||0).toFixed(1)}</td>
+                          <td style={{padding:"4px 8px",color:"#94A3B8"}}>{(p.idx_prev||0).toFixed(1)}</td>
+                          <td style={{padding:"4px 8px",fontWeight:700,color:dc}}>{delta>0?"+":""}{delta.toFixed(1)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {camFiltrados.length>200&&<div style={{padding:"8px",textAlign:"center",fontSize:10,color:"#94A3B8"}}>Mostrando 200 de {nFmt(camFiltrados.length)} — exporta para ver todos</div>}
+              </div>
+            </>
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabAdministracion({pacientes}) {
   const [subTab,setSubTab]=useState("usuarios");
 
@@ -2770,13 +3060,17 @@ function TabAdministracion({pacientes}) {
   // Cargar usuarios desde Supabase
   useEffect(()=>{
     const load=async()=>{
-      setUsuLoading(true);
+      setUsuLoading(true); setUsuError("");
       try {
         const sb=await getSupabase();
-        const {data,error}=await sb.from("usuarios_visor").select("*").order("created_at");
+        if(!sb) throw new Error("No se pudo conectar con Supabase");
+        // Timeout de 10s para no quedarse colgado
+        const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("Tiempo de espera agotado (10s)")),10000));
+        const query   = sb.from("usuarios_visor").select("*").order("created_at");
+        const {data,error} = await Promise.race([query, timeout]);
         if(error) throw error;
         setUsuarios(data||[]);
-      } catch(e){ setUsuError(e.message); }
+      } catch(e){ setUsuError(e.message||"Error desconocido"); }
       setUsuLoading(false);
     };
     load();
@@ -3635,6 +3929,7 @@ function App() {
     {k:"ESTADÍSTICAS",icon:"📊"},
     {k:"DETALLE",     icon:"📋"},
     {k:"ANÁLISIS",    icon:"📈"},
+    {k:"HISTÓRICO",   icon:"📅"},
     ...(ROLES_DEF[role]?.admin?[{k:"ADMINISTRACIÓN",icon:"⚙️",admin:true}]:[]),
   ];
 
@@ -3941,6 +4236,7 @@ function App() {
             loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo}/>
         )}
         {tab==="ANÁLISIS"&&<TabAnalisis pacientes={pacientesFiltrados} savedAnalisis={savedAnalisis} setSavedAnalisis={setSavedAnalisis}/>}
+        {tab==="HISTÓRICO"&&<TabHistorico/>}
         {tab==="ADMINISTRACIÓN"&&<TabAdministracion pacientes={pacientes}/>}
       </div>
     </div>
