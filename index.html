@@ -506,23 +506,25 @@ function applyFiltros(pacs, filtros) {
 async function cargarTodosPacientes(onProgress) {
   const sb = await getSupabase();
   if (!sb) return [];
-  const batchSize = 1000;
-  let all = [], offset = 0, hasMore = true;
-  // Usa PACIENTES_VISTA — campos clave extraídos del JSONB server-side (~5MB vs 122MB)
-  while (hasMore) {
-    const {data, error} = await sb
+  const batchSize = 1000; // Supabase max por request
+  let all = [], offset = 0;
+  // Usa PACIENTES_VISTA — campos clave extraídos del JSONB server-side
+  while (true) {
+    const {data, error, count} = await sb
       .from("PACIENTES_VISTA")
-      .select("*")
+      .select("*", {count:"exact"})
       .range(offset, offset + batchSize - 1);
-    if (error || !data) { console.error("Error carga:", error); break; }
-    if (offset === 0 && data.length > 0) {
-      window._SUPABASE_COLS = Object.keys(data[0]);
-      console.log("COLUMNAS VISTA:", window._SUPABASE_COLS);
+    if (error) { console.error("Error carga:", error); break; }
+    if (!data || data.length === 0) break;
+    if (offset === 0) {
+      console.log("COLUMNAS VISTA:", Object.keys(data[0]));
+      console.log("TOTAL en BD:", count);
     }
     all = [...all, ...data.map(r => mapearPacienteVista(r))];
-    offset += batchSize;
-    onProgress(Math.min(98, Math.round(offset / META.totalBD * 100)));
-    hasMore = data.length === batchSize;
+    offset += data.length;
+    const total = count || META.totalBD;
+    onProgress(Math.min(98, Math.round(offset / total * 100)));
+    if (data.length < batchSize) break; // último batch
   }
   return all;
 }
@@ -784,7 +786,10 @@ let _debugLogged = false;
 function mapearPacienteVista(r) {
   if (!_debugLogged) {
     _debugLogged = true;
-    console.log("🔍 PRIMERA FILA RAW:", JSON.stringify(r));
+    const sample = {};
+    Object.keys(r).forEach(k => { try { sample[k] = r[k]; } catch(e) {} });
+    console.log("🔍 PRIMERA FILA CAMPOS:", Object.keys(r));
+    console.log("🔍 pob:", r.pob, "caract_geron:", r.caract_geron, "medico:", r.medico, "bloque:", r.bloque);
   }
   const audit = r.auditoria || {};
 
