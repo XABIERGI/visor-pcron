@@ -3135,22 +3135,6 @@ function TabAdministracion({pacientes}) {
               </div>
             )}
 
-            {/* Botón recarga manual */}
-            {!etlRunning&&(
-              <div style={{marginBottom:16}}>
-                {!showEtlConfirm ? (
-                  <button onClick={()=>setShowEtlConfirm(true)} style={{padding:"9px 20px",background:"#1D4ED8",border:"none",borderRadius:7,color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                    🔄 Iniciar Recarga Manual
-                  </button>
-                ) : (
-                  <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:7}}>
-                    <span style={{fontSize:12,color:"#92400E",fontWeight:600}}>⚠️ ¿Confirmar recarga? Sobrescribirá los datos actuales.</span>
-                    <button onClick={runETL} style={{padding:"5px 12px",background:"#DC2626",border:"none",borderRadius:5,color:"white",fontSize:11,fontWeight:700,cursor:"pointer"}}>Confirmar</button>
-                    <button onClick={()=>setShowEtlConfirm(false)} style={{padding:"5px 10px",background:"white",border:"1px solid #E2E8F0",borderRadius:5,fontSize:11,cursor:"pointer"}}>Cancelar</button>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Historial */}
             <div style={{fontSize:12,fontWeight:700,color:"#1E293B",marginBottom:8}}>Historial de Recargas</div>
