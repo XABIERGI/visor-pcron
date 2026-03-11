@@ -508,15 +508,18 @@ async function cargarTodosPacientes(onProgress) {
   if (!sb) return [];
   const batchSize = 1000;
   let all = [], offset = 0, hasMore = true;
-  // Fase 1: solo columnas directas, sin JSONB criterios (122MB)
-  const colsBasicas = "id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo";
+  // Usa PACIENTES_VISTA — campos clave extraídos del JSONB server-side (~5MB vs 122MB)
   while (hasMore) {
-    const {data, error} = await sb.from("PACIENTES").select(colsBasicas).range(offset, offset + batchSize - 1);
-    if (error || !data) break;
+    const {data, error} = await sb
+      .from("PACIENTES_VISTA")
+      .select("*")
+      .range(offset, offset + batchSize - 1);
+    if (error || !data) { console.error("Error carga:", error); break; }
     if (offset === 0 && data.length > 0) {
       window._SUPABASE_COLS = Object.keys(data[0]);
+      console.log("COLUMNAS VISTA:", window._SUPABASE_COLS);
     }
-    all = [...all, ...data.map(r => mapearPaciente(r))];
+    all = [...all, ...data.map(r => mapearPacienteVista(r))];
     offset += batchSize;
     onProgress(Math.min(98, Math.round(offset / META.totalBD * 100)));
     hasMore = data.length === batchSize;
@@ -525,50 +528,7 @@ async function cargarTodosPacientes(onProgress) {
 }
 
 // Fase 2: carga criterios JSONB en background, actualiza pacientes progresivamente
-async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
-  const sb = await getSupabase();
-  if (!sb) return;
-  const batchSize = 1000;
-  let offset = 0, total = pacientes.length;
-  const idxMap = {};
-  pacientes.forEach((p,i) => { idxMap[p.id] = i; });
 
-  while (offset < total) {
-    const slice = pacientes.slice(offset, offset + batchSize);
-    const ids   = slice.map(p => p.id);
-    const {data, error} = await sb
-      .from("PACIENTES")
-      .select("id_paciente,criterios")
-      .in("id_paciente", ids);
-
-    if (!error && data) {
-      const updates = {};
-      data.forEach(row => {
-        const idx = idxMap[row.id_paciente];
-        if (idx === undefined) return;
-        const p = pacientes[idx];
-        // Reconstruir fila completa con criterios
-        updates[idx] = mapearPaciente({
-          id_paciente: p.id,
-          cic:         p.cic,
-          edad:        p.edad,
-          sexo:        p.sexo === 'H' ? 'Hombre' : 'Mujer',
-          comarca_osi: p.osi,
-          centro:      p.centro,
-          codigo_cupo: p.cupo,
-          criterios:   row.criterios || {},
-        });
-      });
-      if (Object.keys(updates).length > 0) onBatch(updates);
-    }
-    offset += batchSize;
-    onProgress(Math.round(offset / total * 100));
-    await new Promise(r => setTimeout(r, 30));
-  }
-  onProgress(100);
-}
-
-// Carga criterios completos en segundo plano y actualiza pacientes
 async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
   const sb = await getSupabase();
   if (!sb) return;
@@ -813,6 +773,81 @@ function getAuditDef(pat) {
     equipo: AUDIT_DEF.equipo.perfiles[p] || AUDIT_DEF.equipo.perfiles["_resto"],
     form:   AUDIT_DEF.form.perfiles[p]   || null,
     seg:    AUDIT_DEF.seg.perfiles[p]    || null,
+  };
+}
+
+
+// Mapeo desde PACIENTES_VISTA (campos planos, sin JSONB)
+function mapearPacienteVista(r) {
+  const audit = r.auditoria || {};
+
+  let osi = r.comarca_osi || '';
+  if (osi.toUpperCase().includes('DONOSTIALDEA')) osi = '01 OSID';
+  else if (osi.toUpperCase().includes('TOLOSALDEA')) osi = '02 OSIT';
+  else if (osi && !osi.startsWith('0')) osi = '03 RESTO OSI';
+
+  let sexo = r.sexo || '';
+  if (sexo === 'Hombre' || sexo === 'HOMBRE') sexo = 'H';
+  if (sexo === 'Mujer'  || sexo === 'MUJER')  sexo = 'M';
+
+  const aud_estrat = audit['estratificacion'] || {};
+  const aud_equipo = audit['equipo_ref']      || {};
+  const aud_form   = audit['formularios']     || {};
+  const aud_seg    = audit['seguimiento']     || {};
+
+  const dimsPct = [aud_estrat,aud_equipo,aud_form,aud_seg]
+    .filter(d=>d.total>0).map(d=>d.pct||0);
+  const audit_global = dimsPct.length
+    ? Math.round(dimsPct.reduce((a,b)=>a+b,0)/dimsPct.length) : 0;
+  const audit_pend = [
+    ...(aud_estrat.falta||[]),...(aud_equipo.falta||[]),
+    ...(aud_form.falta||[]),...(aud_seg.falta||[]),
+  ];
+  const colorOrder = {ROJO:0,NARANJA:1,AMARILLO:2,VERDE:3};
+  const colores = [aud_estrat,aud_equipo,aud_form,aud_seg].filter(d=>d.color).map(d=>d.color);
+  const color_global = colores.length
+    ? colores.reduce((w,c)=>(colorOrder[c]??99)<(colorOrder[w]??99)?c:w)
+    : 'ROJO';
+
+  return {
+    id:     r.id_paciente,
+    cic:    r.cic,
+    sexo,
+    edad:   parseInt(r.edad) || 0,
+    osi,
+    centro: r.centro,
+    cupo:   r.codigo_cupo,
+    medico:      r.medico      || '',
+    bloque:      r.bloque      || '',
+    centro_ger:  r.centro_ger  || '',
+    gip_ap:      esSi(r.gip_ap),
+    gip_hosp:    esSi(r.gip_hosp),
+    gip_osarean: esSi(r.gip_osarean),
+    pob:     r.pob || '',
+    geron:   esSi(r.caract_geron),
+    pal:     esSi(r.caract_pal),
+    dep:     esSi(r.caract_dep),
+    hfh:     esSi(r.caract_hfh),
+    hfap:    esSi(r.caract_hfap),
+    comorb:  esSi(r.caract_comorb),
+    sano:    esSi(r.caract_sano),
+    may85:   esSi(r.caract_may85),
+    polimed: esSi(r.caract_polimed),
+    demog:   false,
+    social:  0,
+    co:    parseFloat(r.co)    || 0,
+    fr:    parseFloat(r.fr)    || 0,
+    compl: parseFloat(r.compl) || 0,
+    audit_global,
+    audit_color: color_global,
+    audit_pend,
+    audit_estrat: aud_estrat,
+    audit_equipo: aud_equipo,
+    audit_form:   aud_form,
+    audit_seg:    aud_seg,
+    top_adec:   parseFloat(r.compl) || 0,
+    audit_adec: audit_global,
+    _criterios: {},  // vacío — se carga bajo demanda en modal
   };
 }
 
@@ -3913,19 +3948,7 @@ function App() {
       setPacientes(pacs);
       setProgreso(100);
       setTimeout(()=>setLoading(false),400);
-      // Fase 2: criterios en background
-      if(data.length>0 && pacs!==DEMO_PACIENTES){
-        setCriteriosPct(0);
-        cargarCriteriosBackground(
-          pacs,
-          pct => setCriteriosPct(pct),
-          updates => setPacientes(prev => {
-            const next = [...prev];
-            Object.entries(updates).forEach(([idx,p]) => { next[Number(idx)] = p; });
-            return next;
-          })
-        ).then(() => setCriteriosPct(100));
-      }
+      // PACIENTES_VISTA ya incluye todos los campos necesarios — sin background
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
@@ -4030,17 +4053,7 @@ function App() {
               ⚠️ MODO DEMO
             </div>
           )}
-          {criteriosPct!==null&&criteriosPct<100&&(
-            <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(59,130,246,0.15)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:5,padding:"3px 10px"}}>
-              <div style={{width:60,height:4,background:"rgba(255,255,255,0.1)",borderRadius:2,overflow:"hidden"}}>
-                <div style={{height:"100%",width:criteriosPct+"%",background:"#3B82F6",borderRadius:2,transition:"width .3s"}}/>
-              </div>
-              <span style={{fontSize:9,color:"#93C5FD",fontWeight:700}}>Criterios {criteriosPct}%</span>
-            </div>
-          )}
-          {criteriosPct===100&&(
-            <span style={{fontSize:9,color:"#6EE7B7",fontWeight:700}}>✓ Criterios cargados</span>
-          )}
+
 
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:12,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
