@@ -47,7 +47,9 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
     setBar(40,'Cargando Supabase…');
     loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',()=>{
       setBar(60,'Cargando Babel…');
-      loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
+      loadScript('https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',()=>{
+        setBar(75,'Cargando Babel…');
+        loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
         setBar(80,'Compilando app…');
         setTimeout(()=>{
           try {
@@ -63,6 +65,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
           }
         },50);
       });
+        });
     });
   });
 });
