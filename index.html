@@ -436,6 +436,7 @@ const ROLES_DEF = {
   MAN:{label:"Mando Intermedio",cic:true, admin:false},
   CEN:{label:"Centro/Jefatura",cic:false, admin:false},
   PROFESIONAL:{label:"Profesional",cic:false,admin:false},
+  CONSULTA:{label:"Consulta",  cic:true,  admin:false, soloConsulta:true},
 };
 
 // Columnas básicas para SELECT inicial
@@ -3296,6 +3297,134 @@ function TabAdministracion({pacientes}) {
 // ════════════════════════════════════════════════════════════════════════════
 // ⓭  APP PRINCIPAL — INTEGRACIÓN FINAL
 // ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// 🔍  PANTALLA CONSULTA — búsqueda rápida por CIC / ID
+// ════════════════════════════════════════════════════════════════════════════
+function PantallaConsulta({pacientes, authUser, handleLogout}) {
+  const [busq, setBusq]         = React.useState("");
+  const [resultado, setResultado] = React.useState(null); // null=sin buscar, false=no encontrado, obj=encontrado
+  const [modal, setModal]       = React.useState(null);
+
+  const buscar = () => {
+    const q = busq.trim().toUpperCase();
+    if (!q) return;
+    const found = pacientes.find(p =>
+      String(p.cic||"").toUpperCase() === q ||
+      String(p.id||"").toUpperCase()  === q
+    );
+    setResultado(found || false);
+    setModal(null);
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0B1628,#112240)",display:"flex",flexDirection:"column"}}>
+      {/* TOP BAR */}
+      <div style={{background:"linear-gradient(135deg,#060E1E,#0F2444)",padding:"9px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:7,background:"linear-gradient(135deg,#3B82F6,#06B6D4)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:900,fontSize:15}}>V</div>
+          <div>
+            <div style={{color:"white",fontWeight:800,fontSize:14,letterSpacing:1}}>VISOR PCRON</div>
+            <div style={{color:"#64748B",fontSize:10}}>Paciente Crónico · Osakidetza · {META.version}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
+            <div style={{fontSize:9,color:"#93C5FD",fontWeight:600}}>CONSULTA · {authUser?.email}</div>
+          </div>
+          <button onClick={handleLogout}
+            style={{padding:"5px 12px",fontSize:11,fontWeight:700,background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:6,color:"#FCA5A5",cursor:"pointer"}}>
+            ⏻ Salir
+          </button>
+        </div>
+      </div>
+
+      {/* CONTENIDO CENTRAL */}
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <div style={{width:"100%",maxWidth:480}}>
+          {/* Título */}
+          <div style={{textAlign:"center",marginBottom:32}}>
+            <div style={{fontSize:36,marginBottom:8}}>🔍</div>
+            <div style={{color:"white",fontSize:22,fontWeight:800,marginBottom:6}}>Consulta de Paciente</div>
+            <div style={{color:"#64748B",fontSize:13}}>Introduce el CIC o ID del paciente</div>
+          </div>
+
+          {/* Cajón de búsqueda */}
+          <div style={{display:"flex",gap:8,marginBottom:16}}>
+            <input
+              value={busq}
+              onChange={e=>setBusq(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&buscar()}
+              placeholder="CIC o ID paciente…"
+              style={{flex:1,padding:"12px 16px",borderRadius:8,border:"2px solid rgba(59,130,246,0.3)",
+                background:"rgba(255,255,255,0.06)",color:"white",fontSize:14,fontFamily:"monospace",
+                outline:"none",boxSizing:"border-box"}}
+              autoFocus
+            />
+            <button onClick={buscar}
+              style={{padding:"12px 20px",background:"#3B82F6",border:"none",borderRadius:8,
+                color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+              Buscar
+            </button>
+          </div>
+
+          {/* Resultado */}
+          {resultado===false && (
+            <div style={{padding:"16px 20px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.3)",
+              borderRadius:10,textAlign:"center"}}>
+              <div style={{fontSize:20,marginBottom:6}}>❌</div>
+              <div style={{color:"#FCA5A5",fontWeight:700,fontSize:14}}>Paciente no encontrado</div>
+              <div style={{color:"#64748B",fontSize:12,marginTop:4}}>
+                El CIC o ID <strong style={{color:"#94A3B8"}}>{busq}</strong> no está en la base de datos PCRON
+              </div>
+            </div>
+          )}
+
+          {resultado && (
+            <div style={{padding:"16px 20px",background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.3)",
+              borderRadius:10}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                <div>
+                  <div style={{color:"#93C5FD",fontSize:10,fontWeight:700,letterSpacing:1,marginBottom:4}}>PACIENTE ENCONTRADO</div>
+                  <div style={{color:"white",fontSize:16,fontWeight:900,fontFamily:"monospace"}}>{resultado.id}</div>
+                  <div style={{color:"#64748B",fontSize:12,marginTop:2}}>
+                    CIC: <span style={{color:"#93C5FD",fontFamily:"monospace"}}>{resultado.cic}</span>
+                    &nbsp;·&nbsp;{resultado.sexo==="H"?"♂ Hombre":"♀ Mujer"}
+                    &nbsp;·&nbsp;{resultado.edad} años
+                    &nbsp;·&nbsp;{resultado.centro||"—"}
+                  </div>
+                  {resultado.pob && (
+                    <div style={{marginTop:6}}>
+                      <PobBadge pob={resultado.pob}/>
+                    </div>
+                  )}
+                </div>
+                <button onClick={()=>setModal(resultado)}
+                  style={{padding:"10px 18px",background:"#3B82F6",border:"none",borderRadius:8,
+                    color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                  Ver detalle →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal paciente */}
+      {modal && (
+        <ModalPaciente
+          pat={modal}
+          canCIC={true}
+          criteriosData={{}}
+          loadedGrupos={[]}
+          onLoadGrupo={async()=>{}}
+          onClose={()=>setModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 function App() {
   // ── AUTH ──────────────────────────────────────────────────────────────────
   const [authState,setAuthState]   = useState("checking"); // checking|login|change_password|app
@@ -3549,6 +3678,12 @@ function App() {
   );
 
   if(loading) return <PantallaCarga progreso={progreso} error={error} onRetry={()=>window.location.reload()}/>;
+
+  // Perfil CONSULTA — pantalla exclusiva de búsqueda por CIC
+  const rolDef = ROLES_DEF[authUser?.rol||"PROFESIONAL"]||{};
+  if(rolDef.soloConsulta) return (
+    <PantallaConsulta pacientes={pacientes} authUser={authUser} handleLogout={handleLogout}/>
+  );
 
   return (
     <div style={{fontFamily:"'IBM Plex Sans',system-ui,sans-serif",background:"#F0F4F8",minHeight:"100vh"}}>
