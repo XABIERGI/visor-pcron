@@ -506,15 +506,19 @@ function applyFiltros(pacs, filtros) {
 async function cargarTodosPacientes(onProgress) {
   const sb = await getSupabase();
   if (!sb) return [];
-  const batchSize = 1000;
+  const batchSize = 500; // 122MB JSONB — batches pequeños para no colgarse
   let all = [], offset = 0, hasMore = true;
   const colsBasicas = "id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo,criterios";
   while (hasMore) {
-    const {data, error} = await sb
-      .from("PACIENTES")
-      .select(colsBasicas)
-      .range(offset, offset + batchSize - 1);
-    if (error || !data) break;
+    let data = null, intentos = 0;
+    // Reintento automático hasta 3 veces por batch
+    while (intentos < 3) {
+      const res = await sb.from("PACIENTES").select(colsBasicas).range(offset, offset + batchSize - 1);
+      if (!res.error && res.data) { data = res.data; break; }
+      intentos++;
+      await new Promise(r => setTimeout(r, 1000 * intentos)); // espera 1s, 2s, 3s
+    }
+    if (!data) break;
     if (offset === 0 && data.length > 0) {
       window._SUPABASE_COLS = Object.keys(data[0]);
       console.log("COLUMNAS SUPABASE:", window._SUPABASE_COLS);
@@ -524,6 +528,8 @@ async function cargarTodosPacientes(onProgress) {
     offset += batchSize;
     onProgress(Math.min(98, Math.round(offset / META.totalBD * 100)));
     hasMore = data.length === batchSize;
+    // Pausa breve entre batches para no saturar Supabase
+    await new Promise(r => setTimeout(r, 100));
   }
   return all;
 }
