@@ -46,7 +46,9 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
   loadScript('https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',()=>{
     setBar(40,'Cargando Supabase…');
     loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',()=>{
-      setBar(60,'Cargando Babel…');
+      setBar(55,'Cargando XLSX…');
+      loadScript('https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',()=>{
+      setBar(65,'Cargando Babel…');
       loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
         setBar(80,'Compilando app…');
         setTimeout(()=>{
@@ -62,6 +64,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
             console.error('Babel error:',e);
           }
         },50);
+      });
       });
     });
   });
