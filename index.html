@@ -776,43 +776,6 @@ function getAuditDef(pat) {
   };
 }
 
-// Criterios de PERFIL/POBLACIÓN — qué define que el paciente está en ese grupo
-const CRITERIOS_PERFIL = {
-  geron:  {label:"Gerontológico",       color:"#7C3AED", items:[
-    {l:"Marca GER OGP",                 k:"05-13-09-01"},
-    {l:"Alerta Institucionalizado",      k:"05-14-10-01"},
-    {l:"Año ingreso gerontológico",      k:"02-02-16-01"},
-    {l:"Centro gerontológico",           k:"02-02-16-02"},
-  ]},
-  pal:    {label:"Paliativo",           color:"#DC2626", items:[
-    {l:"Episodio PAL",                   k:"05-15-09-01"},
-    {l:"Alerta A PAL",                   k:"05-14-09-01"},
-    {l:"PIA PAL",                        k:"06-16-09-01"},
-    {l:"NECPAL positivo",                k:"06-16-09-02"},
-  ]},
-  dep:    {label:"Dependiente Domicilio",color:"#D97706", items:[
-    {l:"Barthel 6m <60",                 k:"06-15-05-01"},
-    {l:"Barthel 1año <80",               k:"06-15-05-02"},
-    {l:"Episodio Crónico Domiciliario",  k:"05-15-10-01"},
-    {l:"Alerta Crónico Domiciliario",    k:"05-14-10-02"},
-  ]},
-  hfh:    {label:"HF Hospitalario",    color:"#DC2626", items:[
-    {l:"Reingresos",                     k:"04-13-07-01"},
-    {l:"N ingresos MI >2",               k:"04-13-07-02"},
-    {l:"N ingresos OTRAS >2",            k:"04-13-07-03"},
-    {l:"HaD >2",                         k:"04-13-08-01"},
-    {l:"ING MI >10d",                    k:"04-13-07-04"},
-  ]},
-  hfap:   {label:"HF AP",              color:"#0891B2", items:[
-    {l:"ACT AP Médica",                  k:"04-12-05-01"},
-    {l:"ACT AP Enfermería",              k:"04-12-06-01"},
-  ]},
-  comorb: {label:"Mayor Comorbilidad", color:"#0891B2", items:[
-    {l:"IC total",                       k:"02-03-00-01"},
-    {l:"EPOC total",                     k:"02-03-00-02"},
-  ]},
-  sano:   {label:"Mayor Sano",         color:"#059669", items:[]},
-};
 
 function mapearPaciente(r) {
   const crit = r.criterios || {};
