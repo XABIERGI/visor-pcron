@@ -1620,7 +1620,8 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
   const centrosFiltrados = centroTxt ? centrosDisp.filter(c=>c.toLowerCase().includes(centroTxt.toLowerCase())) : centrosDisp;
   const cuposDisp   = useMemo(()=>[...new Set(pacsSinCampo("cupo").map(p=>p.cupo).filter(Boolean))].sort(),[pacsSinCampo]);
   const medicosDisp = useMemo(()=>[...new Set(pacsSinCampo("medico").map(p=>p.medico).filter(Boolean))].sort(),[pacsSinCampo]);
-  const bloquesDisp = useMemo(()=>[...new Set(pacsSinCampo("bloque").map(p=>p.bloque).filter(Boolean))].sort(),[pacsSinCampo]);
+  const bloquesDisp   = useMemo(()=>[...new Set(pacsSinCampo("bloque").map(p=>p.bloque).filter(Boolean))].sort(),[pacsSinCampo]);
+  const centroGerDisp = useMemo(()=>[...new Set(pacsSinCampo("centro_ger").map(p=>p.centro_ger).filter(Boolean))].sort(),[pacsSinCampo]);
 
   // GIP: solo mostrar si hay pacientes con ese programa en contexto actual
   const gipCtx = useMemo(()=>({
@@ -1881,10 +1882,27 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             <CheckGroup campo="bloque" opciones={bloquesDisp.length>0?bloquesDisp:BLOQUES_PCRON}/>
           </Seccion>
 
+
+          {/* GIP */}
+          <Seccion k="gip" label="Programas GIP">
+            {[["gip_ap","GIP AP"],["gip_hosp","GIP PCRON Hosp."],["gip_osarean","GIP OSAREAN"]].map(([campo,label])=>(
+              <div key={campo} style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
+                <span style={{fontSize:11,flex:1,color:"#475569"}}>{label}</span>
+                {[["Sí",true,"#059669"],["No",false,"#DC2626"]].map(([l,v,c])=>{
+                  const on=filtros.some(f=>f.campo===campo&&f.valor===v);
+                  return <button key={l} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===v))):add({campo,label:`${label} = ${l}`,tipo:"bool",valor:v})}
+                    style={{padding:"2px 8px",fontSize:10,border:`1px solid ${on?c:"#E2E8F0"}`,borderRadius:4,background:on?c+"15":"white",color:on?c:"#94A3B8",cursor:"pointer",fontWeight:on?700:400}}>
+                    {l}
+                  </button>;
+                })}
+              </div>
+            ))}
+          </Seccion>
+
           {/* CENTRO GERONTOLÓGICO */}
           <Seccion k="centro_ger" label="Centro Gerontológico">
             <div style={{maxHeight:140,overflowY:"auto"}}>
-              {[...new Set(pacsSinCampo("centro_ger").map(p=>p.centro_ger).filter(Boolean))].sort().map(cg=>{
+              {centroGerDisp.map(cg=>{
                 const on=filtros.some(f=>f.campo==="centro_ger"&&f.valor===cg);
                 return (
                   <label key={cg} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",
@@ -1902,21 +1920,6 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             </div>
           </Seccion>
 
-          {/* GIP */}
-          <Seccion k="gip" label="Programas GIP">
-            {[["gip_ap","GIP AP"],["gip_hosp","GIP PCRON Hosp."],["gip_osarean","GIP OSAREAN"]].map(([campo,label])=>(
-              <div key={campo} style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
-                <span style={{fontSize:11,flex:1,color:"#475569"}}>{label}</span>
-                {[["Sí",true,"#059669"],["No",false,"#DC2626"]].map(([l,v,c])=>{
-                  const on=filtros.some(f=>f.campo===campo&&f.valor===v);
-                  return <button key={l} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===v))):add({campo,label:`${label} = ${l}`,tipo:"bool",valor:v})}
-                    style={{padding:"2px 8px",fontSize:10,border:`1px solid ${on?c:"#E2E8F0"}`,borderRadius:4,background:on?c+"15":"white",color:on?c:"#94A3B8",cursor:"pointer",fontWeight:on?700:400}}>
-                    {l}
-                  </button>;
-                })}
-              </div>
-            ))}
-          </Seccion>
         </div>
 
         {/* ── COLUMNA 2: CARACTERÍSTICAS ── */}
