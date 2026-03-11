@@ -2802,17 +2802,26 @@ function TabAdministracion({pacientes}) {
     try {
       const sb=await getSupabase();
       const {error}=await sb.from("usuarios_visor").insert({
-        email:newUser.email, nombre:newUser.nombre, rol:newUser.rol,
+        email:newUser.email.toLowerCase().trim(),
+        nombre:newUser.nombre.trim(), rol:newUser.rol,
         centros:newUser.centros||[], cupos:newUser.cupos||[], activo:true, primer_login:true
       });
-      if(error) throw error;
+      if(error) {
+        if(error.code==="23505") setInvMsg("❌ Ya existe un usuario con ese email.");
+        else setInvMsg("❌ "+error.message);
+        setInvitando(false);
+        return;
+      }
       const {data}=await sb.from("usuarios_visor").select("*").order("created_at");
       setUsuarios(data||[]);
       setShowNewUser(false);
       setNewUser({nombre:"",email:"",rol:"PROFESIONAL",centros:[],cupos:[],activo:true});
-      setInvMsg("✅ Usuario creado. El usuario debe crearse una contraseña en Supabase Authentication.");
-    } catch(e){ setInvMsg("❌ "+e.message); }
-    setInvitando(false);
+      setInvMsg("✅ Usuario creado. Debe usar su email en el visor y 'Olvidé mi contraseña' para acceder.");
+    } catch(e){
+      setInvMsg("❌ "+(e.message||"Error desconocido"));
+    } finally {
+      setInvitando(false);
+    }
   };
 
   // Activar / desactivar usuario
