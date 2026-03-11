@@ -507,13 +507,13 @@ async function cargarTodosPacientes(onProgress) {
   if (!sb) return [];
   const batchSize = 1000;
   let all = [], offset = 0, hasMore = true;
+  const colsBasicas = "id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo,criterios";
   while (hasMore) {
     const {data, error} = await sb
       .from("PACIENTES")
-      .select('*')
+      .select(colsBasicas)
       .range(offset, offset + batchSize - 1);
     if (error || !data) break;
-    // PRIMERA VEZ: guardar columnas reales para debug
     if (offset === 0 && data.length > 0) {
       window._SUPABASE_COLS = Object.keys(data[0]);
       console.log("COLUMNAS SUPABASE:", window._SUPABASE_COLS);
@@ -525,6 +525,53 @@ async function cargarTodosPacientes(onProgress) {
     hasMore = data.length === batchSize;
   }
   return all;
+}
+
+// Carga criterios completos en segundo plano y actualiza pacientes
+async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
+  const sb = await getSupabase();
+  if (!sb) return;
+  const batchSize = 2000;
+  let offset = 0, total = pacientes.length;
+  // Mapa id→índice para updates rápidos
+  const idxMap = {};
+  pacientes.forEach((p,i) => { idxMap[p.id] = i; });
+
+  while (offset < total) {
+    const ids = pacientes.slice(offset, offset + batchSize).map(p => p.id);
+    const {data, error} = await sb
+      .from("PACIENTES")
+      .select("id_paciente,criterios")
+      .in("id_paciente", ids);
+    if (error || !data) { offset += batchSize; continue; }
+
+    // Merge criterios into existing pacientes
+    const updates = {};
+    data.forEach(row => {
+      const crit = row.criterios || {};
+      const idx = idxMap[row.id_paciente];
+      if (idx === undefined) return;
+      const p = pacientes[idx];
+      // Re-mapear con criterios completos
+      const updated = {
+        ...p,
+        medico:      getC(crit,'04-13-03-03') || p.medico || '',
+        bloque:      getC(crit,'04-13-03-02') || p.bloque || '',
+        centro_ger:  getC(crit,'02-02-16-02') || p.centro_ger || '',
+        co:    parseFloat(getC(crit,'05-19-00-13')) || p.co    || 0,
+        fr:    parseFloat(getC(crit,'05-19-00-14')) || p.fr    || 0,
+        compl: parseFloat(getC(crit,'05-19-00-15')) || p.compl || 0,
+        _criterios: crit,
+      };
+      updates[idx] = updated;
+    });
+    onBatch(updates);
+    offset += batchSize;
+    onProgress(Math.round(offset / total * 100));
+    // Pequeña pausa para no bloquear el hilo UI
+    await new Promise(r => setTimeout(r, 50));
+  }
+  onProgress(100);
 }
 
 // ── MAPEO columnas Supabase → claves internas ──────────────────────────────
@@ -3084,13 +3131,14 @@ function TabAdministracion({pacientes}) {
               </a>
             </div>
             {/* Instrucciones */}
-            <div style={{background:"#FEF9C3",border:"1px solid #FDE047",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:11,color:"#713F12",lineHeight:1.7}}>
+            <div style={{background:"#FEF9C3",border:"1px solid #FDE047",borderRadius:8,padding:"12px 14px",marginBottom:12,fontSize:11,color:"#713F12",lineHeight:1.7}}>
               <strong>📋 Proceso de actualización mensual:</strong><br/>
               1. Descarga las nuevas tablas en <strong>TABLAS_BASE</strong> de Drive<br/>
               2. Abre el enlace de Colab arriba → Archivo → Abrir → Drive → <strong>VISOR_PCRON_Colab.ipynb</strong><br/>
               3. Entorno de ejecución → <strong>Ejecutar todo</strong><br/>
               4. Espera ~5 minutos · Los datos se actualizan en Supabase automáticamente
             </div>
+
 
             {/* ETL en curso */}
             {etlRunning&&(
@@ -3297,6 +3345,7 @@ function App() {
   const [progreso,setProgreso]=useState(0);
   const [error,setError]=useState(null);
   const [pacientes,setPacientes]=useState([]);
+  const [criteriosPct,setCriteriosPct]=useState(null); // null=no iniciado, 0-99=cargando, 100=listo
   const [tab,setTab]=useState("VISOR");
   const [role,setRole]=useState("PROFESIONAL");
   const [filtros,setFiltros]=useState([]);
@@ -3442,9 +3491,24 @@ function App() {
     setLoading(true); setProgreso(0);
     try {
       const data=await cargarTodosPacientes(setProgreso);
-      setPacientes(data.length===0?DEMO_PACIENTES:data);
+      const pacs=data.length===0?DEMO_PACIENTES:data;
+      setPacientes(pacs);
       setProgreso(100);
       setTimeout(()=>setLoading(false),400);
+      // Carga criterios en segundo plano
+      if(data.length>0){
+        setCriteriosPct(0);
+        await cargarCriteriosBackground(
+          pacs,
+          pct=>setCriteriosPct(pct),
+          updates=>setPacientes(prev=>{
+            const next=[...prev];
+            Object.entries(updates).forEach(([idx,p])=>{next[Number(idx)]=p;});
+            return next;
+          })
+        );
+        setCriteriosPct(100);
+      }
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
@@ -3541,6 +3605,17 @@ function App() {
             <div style={{background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:5,padding:"3px 10px",fontSize:10,color:"#92400E",fontWeight:700}}>
               ⚠️ MODO DEMO
             </div>
+          )}
+          {criteriosPct!==null&&criteriosPct<100&&(
+            <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(59,130,246,0.15)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:5,padding:"3px 10px"}}>
+              <div style={{width:60,height:4,background:"rgba(255,255,255,0.1)",borderRadius:2,overflow:"hidden"}}>
+                <div style={{height:"100%",width:criteriosPct+"%",background:"#3B82F6",borderRadius:2,transition:"width .3s"}}/>
+              </div>
+              <span style={{fontSize:9,color:"#93C5FD",fontWeight:700}}>Criterios {criteriosPct}%</span>
+            </div>
+          )}
+          {criteriosPct===100&&(
+            <span style={{fontSize:9,color:"#6EE7B7",fontWeight:700}}>✓ Criterios cargados</span>
           )}
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:12,fontWeight:700,color:"white"}}>{authUser?.nombre}</div>
