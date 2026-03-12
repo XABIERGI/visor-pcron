@@ -46,6 +46,8 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
   loadScript('https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',()=>{
     setBar(40,'Cargando Supabase…');
     loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',()=>{
+      setBar(55,'Cargando XLSX…');
+      loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',()=>{
       setBar(60,'Cargando Babel…');
       loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js',()=>{
         setBar(80,'Compilando app…');
@@ -63,6 +65,7 @@ loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',(
           }
         },50);
       });
+      }); // fin xlsx
     });
   });
 });
@@ -525,7 +528,9 @@ async function cargarTodosPacientes(onProgress) {
     onProgress(Math.min(98, Math.round(offset / total * 100)));
     if (data.length < batchSize) break; // último batch
   }
-  return all;
+  // Deduplicar por id — si PACIENTES_VISTA tiene duplicados los eliminamos aquí
+  const seen = new Set();
+  return all.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
 }
 
 // Fase 2: carga criterios JSONB en background, actualiza pacientes progresivamente
@@ -782,20 +787,23 @@ function getAuditDef(pat) {
 
 // Mapeo desde PACIENTES_VISTA (campos planos, sin JSONB)
 // Normaliza valores de pob de Supabase → claves de POB_DEF
+// Supabase puede devolver variantes con/sin tilde, con/sin "EN", etc.
 function normalizarPob(v) {
   if (!v) return '';
-  const s = String(v).toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
-  // Mapeo por palabra clave
-  if (s.includes("GERON"))          return "01 GERONTOLÓGICO";
-  if (s.includes("PALIAT"))         return "02 PALIATIVO";
-  if (s.includes("DEPEND"))         return "03 DEPENDIENTE DOMICILIO";
-  if (s.includes("HF HOSP") || (s.includes("HF") && s.includes("HOSP"))) return "04 HF HOSPITALARIO";
-  if (s.includes("HF AP") || (s.includes("HF") && s.includes("AP")))     return "05 HF AP";
-  if (s.includes("COMORB"))         return "06 MAYOR COMORBILIDAD";
-  if (s.includes("DEMOG"))          return "08 DEMOGRÁFICOS";
-  if (s.includes("SANO") && s.includes("85")) return "08 DEMOGRÁFICOS"; // >85 es característica
-  if (s.includes("SANO"))           return "07 MAYOR SANO";
-  return v; // devolver original si no se reconoce
+  // Normalizar: quitar tildes, mayúsculas, quitar espacios extra
+  const s = String(v).toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/\s+/g," ").trim();
+  // Mapeo por número de grupo (más robusto que por texto)
+  if (s.startsWith("01") || s.includes("GERON"))           return "01 GERONTOLÓGICO";
+  if (s.startsWith("02") || s.includes("PALIAT"))          return "02 PALIATIVO";
+  if (s.startsWith("03") || s.includes("DEPEND"))          return "03 DEPENDIENTE DOMICILIO";
+  if (s.startsWith("04") || (s.includes("HF") && s.includes("HOSP"))) return "04 HF HOSPITALARIO";
+  if (s.startsWith("05") || (s.includes("HF") && (s.includes(" AP") || s.endsWith("AP")))) return "05 HF AP";
+  if (s.startsWith("06") || s.includes("COMORB"))          return "06 MAYOR COMORBILIDAD";
+  if (s.startsWith("07") || (s.includes("SANO") && !s.includes("85"))) return "07 MAYOR SANO";
+  if (s.startsWith("08") || s.includes("DEMOG"))           return "08 DEMOGRÁFICOS";
+  return v;
 }
 
 let _debugLogged = false;
@@ -2048,7 +2056,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, {type:"binary"});
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:"array"});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, {header:1});
         // Detectar columna ID o CIC (primera fila = cabecera)
@@ -2066,7 +2074,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
         setListaResult({error:"Error leyendo Excel: "+err.message});
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const exportarNoIncluidos = () => {
@@ -2136,17 +2144,22 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
       <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 14px"}}>
         <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:6}}>🔍 BÚSQUEDA RÁPIDA — ID · CIC · Cupo · Centro</div>
         <div style={{position:"relative"}}>
-          <input value={busqTexto} onChange={e=>setBusqTexto(e.target.value)}
-            onKeyDown={e=>{
-              if(e.key==="Enter" && busqTexto.trim().length>=2){
+          <div style={{display:"flex",gap:4}}>
+            <input value={busqTexto} onChange={e=>setBusqTexto(e.target.value)}
+              placeholder="ID, CIC, cupo o centro…"
+              style={{flex:1,padding:"6px 10px",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"inherit"}}/>
+            <button onClick={()=>{
                 const v=busqTexto.trim();
+                if(v.length<2) return;
                 const campos=["id","cic","cupo","centro"];
                 const campo=campos.find(c=>pacientes.some(p=>String(p[c]||"").toLowerCase().includes(v.toLowerCase())))||"id";
                 add({campo,label:`Texto: "${v}"`,tipo:"texto",valor:v});
                 setBusqTexto("");
-              }
-          }} placeholder="Escribe ID, CIC, cupo o centro (mín. 3 caracteres)…"
-            style={{width:"100%",padding:"6px 10px",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              }}
+              style={{padding:"6px 12px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+              🔍 Buscar
+            </button>
+          </div>
         </div>
         <div style={{fontSize:9,color:"#94A3B8",marginTop:4}}>Se añade como filtro automáticamente al escribir</div>
       </div>
@@ -2446,18 +2459,89 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                     </button>
                   </div>
                 ) : (
-                  (g.items||[]).map(({k,l})=>{
-                    const on=filtros.some(f=>f.campo===k&&f.valor===true);
+                  (g.items||[]).map(({k,l,tipo})=>{
+                    const getVals = () => [...new Set(
+                      pacientes.map(p => {
+                        const crit = p._criterios||{};
+                        const v = crit[k] ?? Object.entries(crit).find(([ck])=>ck.startsWith(k))?.[1];
+                        return (v!==undefined&&v!==null&&v!==''&&v!=='No'&&v!=='NO'&&v!=='0') ? String(v) : null;
+                      }).filter(Boolean)
+                    )].sort((a,b)=>isNaN(a)||isNaN(b)?a.localeCompare(b):Number(a)-Number(b)).slice(0,30);
+
+                    const activoBool = filtros.some(f=>f.campo===k&&f.tipo==="crit_bool");
+                    const activoVal  = filtros.find(f=>f.campo===k&&f.tipo==="crit_val");
+                    const activo = activoBool || activoVal;
                     return (
-                      <label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 5px",borderRadius:4,marginBottom:2,
-                        background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
-                        <input type="checkbox" checked={on}
-                          onChange={e=>{
-                            if(e.target.checked) add({campo:k,label:l,tipo:"crit_bool",valor:true});
-                            else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.valor===true)));
-                          }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                        <span style={{fontSize:10,color:on?"#1D4ED8":"#475569",fontWeight:on?700:400}}>{l}</span>
-                      </label>
+                      <div key={k} style={{marginBottom:4,padding:"3px 5px",borderRadius:4,
+                        background:activo?"#EFF6FF":"transparent",
+                        border:activo?"1px solid #BFDBFE":"1px solid transparent"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <input type="checkbox" checked={activoBool}
+                            onChange={e=>{
+                              if(e.target.checked) add({campo:k,label:l+" = Sí",tipo:"crit_bool",valor:true});
+                              else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_bool")));
+                            }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+                          <span style={{fontSize:10,color:activo?"#1D4ED8":"#475569",fontWeight:activo?700:400,flex:1}}>{l}</span>
+                        </div>
+                        {(tipo==="num"||tipo==="txt")&&(()=>{
+                          const vals=getVals();
+                          if(!vals.length) return <div style={{fontSize:9,color:"#94A3B8",paddingLeft:18,marginTop:2}}>Sin datos cargados</div>;
+                          return <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4,paddingLeft:18}}>
+                            {vals.map(v=>{
+                              const on=activoVal?.valor===v;
+                              return <button key={v} onClick={()=>on
+                                  ?setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_val")))
+                                  :add({campo:k,label:`${l} = ${v}`,tipo:"crit_val",valor:v})}
+                                style={{padding:"1px 7px",fontSize:9,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,
+                                  borderRadius:3,background:on?"#3B82F6":"white",color:on?"white":"#475569",cursor:"pointer"}}>
+                                {v}
+                              </button>;
+                            })}
+                          </div>;
+                        })()}
+                      </div>
+                    );
+                  }).map(({k,l})=>{
+                    // Detectar si es campo numérico/año por el label
+                    const esNumerico = /año|n|num|frec|dias|meses|veces|valor|edad|score|indice|índice/i.test(l);
+                    // Obtener valores únicos del campo para este criterio
+                    const valoresUnicos = esNumerico ? [...new Set(
+                      pacientes.map(p=>{
+                        const v = p._criterios && (p._criterios[k] || Object.entries(p._criterios||{}).find(([ck])=>ck.startsWith(k))?.[1]);
+                        return v && v!=='No' && v!=='NO' && v!='' ? v : null;
+                      }).filter(Boolean)
+                    )].sort((a,b)=>isNaN(a)?a.localeCompare(b):Number(a)-Number(b)).slice(0,20) : [];
+
+                    const activosBool = filtros.some(f=>f.campo===k&&f.valor===true);
+                    const activoVal = filtros.find(f=>f.campo===k&&f.tipo==="crit_val");
+
+                    return (
+                      <div key={k} style={{marginBottom:4,padding:"3px 5px",borderRadius:4,
+                        background:activosBool||activoVal?"#EFF6FF":"transparent",
+                        border:(activosBool||activoVal)?"1px solid #BFDBFE":"1px solid transparent"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <input type="checkbox" checked={activosBool}
+                            onChange={e=>{
+                              if(e.target.checked) add({campo:k,label:l+" = Sí",tipo:"crit_bool",valor:true});
+                              else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_bool")));
+                            }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
+                          <span style={{fontSize:10,color:(activosBool||activoVal)?"#1D4ED8":"#475569",fontWeight:(activosBool||activoVal)?700:400,flex:1}}>{l}</span>
+                        </div>
+                        {esNumerico && valoresUnicos.length>0 && (
+                          <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:3,paddingLeft:18}}>
+                            {valoresUnicos.map(v=>{
+                              const activo=activoVal&&activoVal.valor===v;
+                              return <button key={v} onClick={()=>activo
+                                  ? setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_val")))
+                                  : add({campo:k,label:`${l} = ${v}`,tipo:"crit_val",valor:v})}
+                                style={{padding:"1px 6px",fontSize:9,border:`1px solid ${activo?"#3B82F6":"#E2E8F0"}`,
+                                  borderRadius:3,background:activo?"#3B82F6":"white",color:activo?"white":"#475569",cursor:"pointer"}}>
+                                {v}
+                              </button>;
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
                   })
                 )}
@@ -3974,14 +4058,46 @@ function App() {
       setPacientes(pacs);
       setProgreso(100);
       setTimeout(()=>setLoading(false),400);
-      // Fase 2: cargar criterios JSONB en background (médico, GIP, bloque, índices, auditoría)
+      // Fase 2: cargar criterios JSONB en background
       if (pacs !== DEMO_PACIENTES) {
         cargarCriteriosBackground(
           pacs,
-          (pct) => console.log(`Criterios: ${pct}%`),
+          (pct) => { if(pct % 20 === 0) console.log(`Criterios: ${pct}%`); },
           (updates) => setPacientes(prev => {
+            const map = new Map(prev.map((p,i) => [p.id, i]));
             const next = [...prev];
-            Object.entries(updates).forEach(([idx, p]) => { next[idx] = p; });
+            Object.values(updates).forEach(p => {
+              const i = map.get(p.id);
+              if (i !== undefined) next[i] = p;
+            });
+            // Cuando tengamos criterios, actualizar criteriosData y marcar grupos cargados
+            // Construir criteriosData por grupo desde _criterios de los pacientes actualizados
+            const gruposIds = GRUPOS_CRITERIOS.map(g=>g.id);
+            setCriteriosData(prevCD => {
+              const nextCD = {...prevCD};
+              gruposIds.forEach(gid => {
+                const grupo = GRUPOS_CRITERIOS.find(g=>g.id===gid);
+                if (!grupo) return;
+                const keys = grupo.items.map(it=>it.k);
+                const gmap = nextCD[gid] || {};
+                Object.values(updates).forEach(p => {
+                  if (!p._criterios) return;
+                  const crit = p._criterios;
+                  const hasAny = keys.some(k => Object.keys(crit).some(ck=>ck.startsWith(k)));
+                  if (hasAny) {
+                    if (!gmap[p.id]) gmap[p.id] = {};
+                    Object.entries(crit).forEach(([ck,v]) => { gmap[p.id][ck] = v; });
+                  }
+                });
+                nextCD[gid] = gmap;
+              });
+              return nextCD;
+            });
+            setLoadedGrupos(prev => {
+              const loaded = new Set(prev);
+              gruposIds.forEach(gid => loaded.add(gid));
+              return [...loaded];
+            });
             return next;
           })
         );
