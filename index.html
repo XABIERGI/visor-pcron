@@ -4052,22 +4052,21 @@ function App() {
           pacs,
           (pct) => { if(pct % 20 === 0) console.log(`Criterios: ${pct}%`); },
           (updates, isLast) => {
-            setPacientes(prev => {
-              const map = new Map(prev.map((p,i) => [p.id, i]));
-              const next = [...prev];
-              Object.values(updates).forEach(p => {
-                const i = map.get(p.id);
-                if (i !== undefined) next[i] = p;
-              });
-              return next;
-            });
-            // Marcar todos los grupos como cargados cuando llega el último batch
+            Object.assign(allUpdates, updates);
             if (isLast) {
+              setPacientes(prev => {
+                const map = new Map(prev.map((p,i) => [p.id, i]));
+                const next = [...prev];
+                Object.values(allUpdates).forEach(p => {
+                  const i = map.get(p.id);
+                  if (i !== undefined) next[i] = p;
+                });
+                return next;
+              });
               setLoadedGrupos(GRUPOS_CRITERIOS.map(g=>g.id));
             }
           }
-        );
-      }
+        );      }
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
