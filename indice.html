@@ -528,9 +528,7 @@ async function cargarTodosPacientes(onProgress) {
     onProgress(Math.min(98, Math.round(offset / total * 100)));
     if (data.length < batchSize) break; // último batch
   }
-  // Deduplicar por id — si PACIENTES_VISTA tiene duplicados los eliminamos aquí
-  const seen = new Set();
-  return all.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+  return all;
 }
 
 // Fase 2: carga criterios JSONB en background, actualiza pacientes progresivamente
@@ -4086,22 +4084,20 @@ function App() {
           (updates) => setPacientes(prev => {
             const map = new Map(prev.map((p,i) => [p.id, i]));
             const next = [...prev];
-            Object.values(updates).forEach(p => {
-              const i = map.get(p.id);
-              if (i !== undefined) {
-                const prev1 = next[i];
-                // Conservar campos de PACIENTES_VISTA (fase 1) que son más fiables
-                // Solo actualizar campos que vienen del JSONB criterios
-                next[i] = {...p,
-                  pob:        prev1.pob        || p.pob,
-                  osi:        prev1.osi        || p.osi,
-                  centro:     prev1.centro     || p.centro,
-                  cupo:       prev1.cupo       || p.cupo,
-                  gip_ap:     prev1.gip_ap     !== undefined ? prev1.gip_ap     : p.gip_ap,
-                  gip_hosp:   prev1.gip_hosp   !== undefined ? prev1.gip_hosp   : p.gip_hosp,
-                  gip_osarean:prev1.gip_osarean!== undefined ? prev1.gip_osarean: p.gip_osarean,
-                };
-              }
+            Object.values(updates).forEach(pNew => {
+              const i = map.get(pNew.id);
+              if (i === undefined) return;
+              const pOld = next[i];
+              // Fase 2 enriquece con criterios — conserva campos fiables de fase 1
+              next[i] = {...pNew,
+                pob:         pOld.pob         || pNew.pob,
+                osi:         pOld.osi         || pNew.osi,
+                centro:      pOld.centro      || pNew.centro,
+                cupo:        pOld.cupo        || pNew.cupo,
+                gip_ap:      pOld.gip_ap      !== undefined ? pOld.gip_ap      : pNew.gip_ap,
+                gip_hosp:    pOld.gip_hosp    !== undefined ? pOld.gip_hosp    : pNew.gip_hosp,
+                gip_osarean: pOld.gip_osarean !== undefined ? pOld.gip_osarean : pNew.gip_osarean,
+              };
             });
             // Cuando tengamos criterios, actualizar criteriosData y marcar grupos cargados
             // Construir criteriosData por grupo desde _criterios de los pacientes actualizados
