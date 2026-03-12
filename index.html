@@ -528,9 +528,7 @@ async function cargarTodosPacientes(onProgress) {
     onProgress(Math.min(98, Math.round(offset / total * 100)));
     if (data.length < batchSize) break; // último batch
   }
-  // Deduplicar por id — si PACIENTES_VISTA tiene duplicados los eliminamos aquí
-  const seen = new Set();
-  return all.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+  return all;
 }
 
 // Fase 2: carga criterios JSONB en background, actualiza pacientes progresivamente
@@ -787,23 +785,21 @@ function getAuditDef(pat) {
 
 // Mapeo desde PACIENTES_VISTA (campos planos, sin JSONB)
 // Normaliza valores de pob de Supabase → claves de POB_DEF
-// Supabase puede devolver variantes con/sin tilde, con/sin "EN", etc.
+// Valores reales confirmados por SQL en PACIENTES_VISTA
+const POB_MAP = {
+  "08 DEMOGRAFICOS":             "08 DEMOGRÁFICOS",
+  "06 MAYOR COMORBILIDAD":       "06 MAYOR COMORBILIDAD",
+  "03 DEPENDIENTE EN DOMICILIO": "03 DEPENDIENTE DOMICILIO",
+  "07 MAYOR SANO":               "07 MAYOR SANO",
+  "01 GERONTOLOGICO":            "01 GERONTOLÓGICO",
+  "05 HF AP":                    "05 HF AP",
+  "02 PALIATIVO":                "02 PALIATIVO",
+  "04 HF HOSPITALARIO":          "04 HF HOSPITALARIO",
+};
 function normalizarPob(v) {
   if (!v) return '';
-  // Normalizar: quitar tildes, mayúsculas, quitar espacios extra
-  const s = String(v).toUpperCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .replace(/\s+/g," ").trim();
-  // Mapeo por número de grupo (más robusto que por texto)
-  if (s.startsWith("01") || s.includes("GERON"))           return "01 GERONTOLÓGICO";
-  if (s.startsWith("02") || s.includes("PALIAT"))          return "02 PALIATIVO";
-  if (s.startsWith("03") || s.includes("DEPEND"))          return "03 DEPENDIENTE DOMICILIO";
-  if (s.startsWith("04") || (s.includes("HF") && s.includes("HOSP"))) return "04 HF HOSPITALARIO";
-  if (s.startsWith("05") || (s.includes("HF") && (s.includes(" AP") || s.endsWith("AP")))) return "05 HF AP";
-  if (s.startsWith("06") || s.includes("COMORB"))          return "06 MAYOR COMORBILIDAD";
-  if (s.startsWith("07") || (s.includes("SANO") && !s.includes("85"))) return "07 MAYOR SANO";
-  if (s.startsWith("08") || s.includes("DEMOG"))           return "08 DEMOGRÁFICOS";
-  return v;
+  const s = String(v).trim().toUpperCase();
+  return POB_MAP[s] || v;
 }
 
 let _debugLogged = false;
@@ -1926,7 +1922,21 @@ function TabDetalle({pacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
             </thead>
             <tbody>
               {rows.map((p,i)=>(
-                <tr key={p.id} onClick={()=>setPat(p)} style={{borderBottom:"1px solid #F1F5F9",background:i%2===0?"white":"#FAFBFC",cursor:"pointer"}}
+                <tr key={p.id} onClick={async()=>{
+                  if(!p._criterios || Object.keys(p._criterios).length===0) {
+                    const sb=await getSupabase();
+                    if(sb){
+                      const {data}=await sb.from("PACIENTES").select("criterios").eq("id_paciente",p.id).single();
+                      if(data?.criterios) {
+                        const mapped=mapearPaciente({...p,id_paciente:p.id,comarca_osi:p.osi,codigo_cupo:p.cupo,criterios:data.criterios});
+                        setPacientes(prev=>prev.map(x=>x.id===p.id?{...mapped,pob:p.pob,osi:p.osi,centro:p.centro,cupo:p.cupo,gip_ap:p.gip_ap,gip_hosp:p.gip_hosp,gip_osarean:p.gip_osarean}:x));
+                        setPat({...mapped,pob:p.pob,osi:p.osi,centro:p.centro,cupo:p.cupo,gip_ap:p.gip_ap,gip_hosp:p.gip_hosp,gip_osarean:p.gip_osarean});
+                        return;
+                      }
+                    }
+                  }
+                  setPat(p);
+                }} style={{borderBottom:"1px solid #F1F5F9",background:i%2===0?"white":"#FAFBFC",cursor:"pointer"}}
                   onMouseEnter={e=>e.currentTarget.style.background="#EFF6FF"}
                   onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"white":"#FAFBFC"}>
                   {cols.map(c=>{
@@ -1950,7 +1960,16 @@ function TabDetalle({pacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
                     }
                   })}
                   <td style={{padding:"8px 12px"}}>
-                    <button onClick={e=>{e.stopPropagation();setPat(p);}} style={{padding:"3px 9px",background:"#F1F5F9",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}}>Ver</button>
+                    <button onClick={async e=>{e.stopPropagation();
+                     if(!p._criterios||Object.keys(p._criterios).length===0){
+                       const sb=await getSupabase();
+                       if(sb){const {data}=await sb.from("PACIENTES").select("criterios").eq("id_paciente",p.id).single();
+                         if(data?.criterios){const mapped=mapearPaciente({...p,id_paciente:p.id,comarca_osi:p.osi,codigo_cupo:p.cupo,criterios:data.criterios});
+                           const safe={...mapped,pob:p.pob,osi:p.osi,centro:p.centro,cupo:p.cupo,gip_ap:p.gip_ap,gip_hosp:p.gip_hosp,gip_osarean:p.gip_osarean};
+                           setPacientes(prev=>prev.map(x=>x.id===p.id?safe:x));setPat(safe);return;}}
+                     }
+                     setPat(p);
+                   }} style={{padding:"3px 9px",background:"#F1F5F9",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}}>Ver</button>
                   </td>
                 </tr>
               ))}
@@ -2445,18 +2464,15 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </div>
 
           {GRUPOS_CRITERIOS.map(g=>{
-            const loaded=loadedGrupos.includes(g.id);
+            const loaded=criteriosData&&criteriosData[g.id]&&Object.keys(criteriosData[g.id]).length>0;
             return (
               <Seccion key={g.id} k={`crit_${g.id}`} label={g.label}
-                badge={loaded?"✓ Cargado":"Sin cargar"}
-                badgeColor={loaded?"#059669":"#94A3B8"}>
+                badge={loaded?"✓ Cargado":"⏳ Cargando…"}
+                badgeColor={loaded?"#059669":"#F59E0B"}>
                 {!loaded ? (
                   <div style={{textAlign:"center",padding:"10px 0"}}>
-                    <div style={{fontSize:10,color:"#94A3B8",marginBottom:8}}>Datos no descargados</div>
-                    <button onClick={()=>onLoadGrupo(g.id, pacientes.slice(0,5000).map(p=>p.id))}
-                      style={{padding:"5px 14px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-                      📦 Cargar criterios
-                    </button>
+                    <div style={{fontSize:10,color:"#F59E0B",marginBottom:4}}>⏳ Cargando criterios…</div>
+                    <div style={{fontSize:9,color:"#94A3B8"}}>Los datos se cargan automáticamente en segundo plano</div>
                   </div>
                 ) : (
                   (g.items||[]).map(({k,l,tipo})=>{
@@ -4060,15 +4076,28 @@ function App() {
       setTimeout(()=>setLoading(false),400);
       // Fase 2: cargar criterios JSONB en background
       if (pacs !== DEMO_PACIENTES) {
+        // Marcar todos los grupos como "cargando" inmediatamente
+        setLoadedGrupos(GRUPOS_CRITERIOS.map(g=>g.id));
         cargarCriteriosBackground(
           pacs,
           (pct) => { if(pct % 20 === 0) console.log(`Criterios: ${pct}%`); },
           (updates) => setPacientes(prev => {
             const map = new Map(prev.map((p,i) => [p.id, i]));
             const next = [...prev];
-            Object.values(updates).forEach(p => {
-              const i = map.get(p.id);
-              if (i !== undefined) next[i] = p;
+            Object.values(updates).forEach(pNew => {
+              const i = map.get(pNew.id);
+              if (i === undefined) return;
+              const pOld = next[i];
+              // Fase 2 enriquece con criterios — conserva campos fiables de fase 1
+              next[i] = {...pNew,
+                pob:         pOld.pob         || pNew.pob,
+                osi:         pOld.osi         || pNew.osi,
+                centro:      pOld.centro      || pNew.centro,
+                cupo:        pOld.cupo        || pNew.cupo,
+                gip_ap:      pOld.gip_ap      !== undefined ? pOld.gip_ap      : pNew.gip_ap,
+                gip_hosp:    pOld.gip_hosp    !== undefined ? pOld.gip_hosp    : pNew.gip_hosp,
+                gip_osarean: pOld.gip_osarean !== undefined ? pOld.gip_osarean : pNew.gip_osarean,
+              };
             });
             // Cuando tengamos criterios, actualizar criteriosData y marcar grupos cargados
             // Construir criteriosData por grupo desde _criterios de los pacientes actualizados
