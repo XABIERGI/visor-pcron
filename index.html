@@ -1999,6 +1999,8 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
   const [showLista,setShowLista] = useState(false);
   const [listaResult,setListaResult] = useState(null);
   const [centroTxt,setCentroTxt]   = useState("");
+  const [medicoTxt,setMedicoTxt]   = useState("");
+  const [cupoTxt,setCupoTxt]       = useState("");
   const [expanded,setExpanded]     = useState({osi:true,centro:true,pob:true,perfiles:true});
 
   const toggle = k => setExpanded(e=>({...e,[k]:!e[k]}));
@@ -2302,17 +2304,32 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* CUPOS */}
           <Seccion k="cupo" label="Código Cupo">
+            <input value={cupoTxt} onChange={e=>setCupoTxt(e.target.value)}
+              placeholder="Buscar cupo…"
+              style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
             <div style={{maxHeight:140,overflowY:"auto"}}>
-              <CheckGroup campo="cupo" opciones={cuposDisp.slice(0,50)}/>
+              <CheckGroup campo="cupo" opciones={cuposDisp.filter(c=>String(c).includes(cupoTxt)).slice(0,50)}/>
             </div>
-            {cuposDisp.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {cuposDisp.length-50} más. Filtra por centro para acotar.</div>}
+            {cuposDisp.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {cuposDisp.length-50} más</div>}
           </Seccion>
 
           {/* MÉDICO REFERENCIA — pendiente de tabla en Supabase */}
           <Seccion k="medico" label="Médico Referencia PCRON">
-            <div style={{padding:"8px",background:"#FEF9C3",borderRadius:6,fontSize:10,color:"#92400E"}}>
-              ⚠️ Pendiente de carga — tabla de médicos no disponible aún en PACIENTES_VISTA
-            </div>
+            {(()=>{
+              const medicosDisp=[...new Set(pacientes.map(p=>p.medico).filter(Boolean))].sort();
+              if(!medicosDisp.length) return <div style={{fontSize:10,color:"#94A3B8",padding:"4px"}}>Sin datos de médico disponibles</div>;
+              const [txt,setTxt] = [medicoTxt, setMedicoTxt];
+              const filtered = medicosDisp.filter(m=>m.toLowerCase().includes(txt.toLowerCase()));
+              return <>
+                <input value={medicoTxt} onChange={e=>setMedicoTxt(e.target.value)}
+                  placeholder="Buscar médico…"
+                  style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
+                <div style={{maxHeight:140,overflowY:"auto"}}>
+                  <CheckGroup campo="medico" opciones={filtered.slice(0,50)} labelFn={o=>o}/>
+                </div>
+                {filtered.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {filtered.length-50} más</div>}
+              </>;
+            })()}
           </Seccion>
 
           {/* BLOQUE CCEE */}
@@ -2340,19 +2357,22 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* GIP */}
           <Seccion k="gip" label="Programas GIP">
-            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <div style={{display:"flex",flexDirection:"column",gap:5}}>
               {[["gip_ap","GIP AP","#0284C7"],["gip_hosp","GIP PCRON Hosp.","#7C3AED"],["gip_osarean","GIP OSAREAN","#059669"]].map(([campo,lbl,col])=>{
                 const onSi=filtros.some(f=>f.campo===campo&&f.valor===true);
                 const onNo=filtros.some(f=>f.campo===campo&&f.valor===false);
-                const n=pacientes.filter(p=>p[campo]).length;
+                const n=pacientes.filter(p=>p[campo]===true).length;
                 return <div key={campo} style={{display:"flex",alignItems:"center",gap:4}}>
                   <span style={{fontSize:10,color:"#475569",flex:1,fontWeight:500}}>{lbl}</span>
-                  <span style={{fontSize:9,color:"#94A3B8",marginRight:4}}>{n.toLocaleString()}</span>
-                  {[["Sí",true],["No",false]].map(([txt,val])=>{
+                  <span style={{fontSize:9,color:"#94A3B8",marginRight:2}}>{n.toLocaleString()}</span>
+                  {[[true,"Sí"],[false,"No"]].map(([val,txt])=>{
                     const on=val===true?onSi:onNo;
                     return <button key={txt} onClick={()=>{
-                        if(on) setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===val)));
-                        else { setFiltros(p=>p.filter(f=>f.campo!==campo)); add({campo,label:`${lbl} = ${txt}`,tipo:"bool",valor:val}); }
+                        setFiltros(prev => {
+                          const sin = prev.filter(f=>f.campo!==campo);
+                          if(on) return sin;
+                          return [...sin, {campo,label:`${lbl} = ${txt}`,tipo:"bool",valor:val}];
+                        });
                       }}
                       style={{padding:"3px 10px",fontSize:10,fontWeight:on?700:500,cursor:"pointer",
                         borderRadius:5,border:`2px solid ${on?col:"#E2E8F0"}`,
@@ -2367,23 +2387,11 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* CENTRO GERONTOLÓGICO */}
           <Seccion k="centro_ger" label="Centro Gerontológico">
-            <div style={{maxHeight:140,overflowY:"auto"}}>
-              {centroGerDisp.map(cg=>{
-                const on=filtros.some(f=>f.campo==="centro_ger"&&f.valor===cg);
-                return (
-                  <label key={cg} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",
-                    padding:"3px 6px",borderRadius:5,marginBottom:1,
-                    background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
-                    <input type="checkbox" checked={on}
-                      onChange={e=>{
-                        if(e.target.checked) add({campo:"centro_ger",label:`Centro Ger = ${cg}`,tipo:"select",valor:cg});
-                        else setFiltros(p=>p.filter(f=>!(f.campo==="centro_ger"&&f.valor===cg)));
-                      }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                    <span style={{fontSize:11,color:on?"#1D4ED8":"#374151",fontWeight:on?700:400}}>{cg}</span>
-                  </label>
-                );
-              })}
-            </div>
+            {(()=>{
+              const cgers=[...new Set(pacientes.map(p=>p.centro_ger).filter(Boolean))].sort();
+              if(!cgers.length) return <div style={{fontSize:10,color:"#94A3B8",padding:"4px"}}>Sin datos</div>;
+              return <CheckGroup campo="centro_ger" opciones={cgers}/>;
+            })()}
           </Seccion>
 
         </div>
@@ -2396,22 +2404,20 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* POBLACIÓN */}
           <Seccion k="pob" label="Grupo de Población" defaultOpen>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+            <div style={{display:"flex",flexDirection:"column",gap:3}}>
               {Object.entries(POB_DEF).map(([pob,c])=>{
                 const on=filtros.some(f=>f.campo==="pob"&&f.valor===pob);
                 const n=pacientes.filter(p=>p.pob===pob).length;
                 return <button key={pob} onClick={()=>{
-                    // Exclusivo: quitar cualquier filtro pob anterior y añadir este
                     if(on) setFiltros(p=>p.filter(f=>f.campo!=="pob"));
                     else { setFiltros(p=>p.filter(f=>f.campo!=="pob")); add({campo:"pob",label:pob,tipo:"select",valor:pob}); }
                   }}
-                  style={{padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer",borderRadius:6,
+                  style={{padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
                     border:`2px solid ${on?c.bg:"#E2E8F0"}`,
-                    background:on?c.bg:c.lt,
-                    color:on?"white":c.bg,
-                    display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-                  <span>{c.short}</span>
-                  <span style={{fontSize:8,fontWeight:400,opacity:.8}}>{n.toLocaleString()}</span>
+                    background:on?c.bg:c.lt, color:on?"white":c.bg,
+                    display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",textAlign:"left"}}>
+                  <span>{pob}</span>
+                  <span style={{fontSize:9,fontWeight:400,opacity:.8,marginLeft:8}}>{n.toLocaleString()}</span>
                 </button>;
               })}
             </div>
@@ -2522,9 +2528,13 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                 badge={loaded?"✓ Cargado":"⏳ Cargando…"}
                 badgeColor={loaded?"#059669":"#F59E0B"}>
                 {!loaded ? (
-                  <div style={{textAlign:"center",padding:"10px 0"}}>
-                    <div style={{fontSize:10,color:"#F59E0B",marginBottom:4}}>⏳ Cargando criterios…</div>
-                    <div style={{fontSize:9,color:"#94A3B8"}}>Los datos se cargan automáticamente en segundo plano</div>
+                  <div style={{textAlign:"center",padding:"8px 0"}}>
+                    <button onClick={()=>onLoadGrupo(g.id, pacientes.map(p=>p.id))}
+                      style={{padding:"6px 14px",background:"#1D4ED8",color:"white",border:"none",
+                        borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                      📦 Cargar criterios
+                    </button>
+                    <div style={{fontSize:9,color:"#94A3B8",marginTop:4}}>Solo se cargan al pulsar</div>
                   </div>
                 ) : (
                   (g.items||[]).map(({k,l:itemLabel,tipo=undefined})=>{
