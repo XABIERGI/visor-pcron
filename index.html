@@ -1984,7 +1984,7 @@ function TabDetalle({pacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
 // ════════════════════════════════════════════════════════════════════════════
 // ❿  TAB FILTROS v6
 // ════════════════════════════════════════════════════════════════════════════
-function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo,setTab}) {
+function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo,criteriosData,setTab}) {
   const [saveName,setSaveName]   = useState("");
   const [showSave,setShowSave]   = useState(false);
   const [busqTexto,setBusqTexto] = useState("");
@@ -4441,7 +4441,7 @@ function App() {
         )}
         {tab==="FILTROS"&&(
           <TabFiltros filtros={filtros} setFiltros={setFiltros} savedFiltros={savedFiltros} setSavedFiltros={setSavedFiltros}
-            pacientes={pacientes} loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo} setTab={setTab}/>
+            pacientes={pacientes} loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo} criteriosData={criteriosData} setTab={setTab}/>
         )}
         {tab==="ESTADÍSTICAS"&&<TabEstadisticas pacientes={pacientesFiltrados}/>}
         {tab==="DETALLE"&&(
