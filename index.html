@@ -1864,6 +1864,8 @@ const PAGE_SIZE=50;
 
 function TabDetalle({pacientes,setPacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
   const [search,setSearch]=useState("");
+  const pobCounts = useMemo(()=>{const m={};pacientes.forEach(p=>{if(p.pob)m[p.pob]=(m[p.pob]||0)+1;});return m;},[pacientes]);
+  const caractCounts = useMemo(()=>{const m={};CARACTS_DEF.forEach(c=>{m[c.k]=pacientes.filter(p=>p[c.k]).length;});return m;},[pacientes]);
   const [page,setPage]=useState(1);
   const [visCols,setVisCols]=useState(ALL_COLS.filter(c=>c.def).map(c=>c.k));
   const [colsOpen,setColsOpen]=useState(false);
