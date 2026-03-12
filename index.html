@@ -558,11 +558,14 @@ async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
       if (idx === undefined) return;
       updates[idx] = { ...pacientes[idx], _criterios: row.criterios || {} };
     });
-    const isLast = (offset + batchSize) >= total;
-    onBatch(updates, isLast);
     offset += batchSize;
+    const isLast = offset >= total;
+    // Acumular updates, llamar onBatch cada 1000 pacientes o al final
+    if (isLast || Object.keys(updates).length >= 200) {
+      onBatch(updates, isLast);
+    }
     onProgress(Math.round(offset / total * 100));
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 5));
   }
   onProgress(100);
 }
@@ -1815,7 +1818,7 @@ const ALL_COLS=[
 ];
 const PAGE_SIZE=50;
 
-function TabDetalle({pacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
+function TabDetalle({pacientes,setPacientes,canCIC,criteriosData,loadedGrupos,onLoadGrupo}) {
   const [search,setSearch]=useState("");
   const [page,setPage]=useState(1);
   const [visCols,setVisCols]=useState(ALL_COLS.filter(c=>c.def).map(c=>c.k));
@@ -4400,7 +4403,7 @@ function App() {
         )}
         {tab==="ESTADÍSTICAS"&&<TabEstadisticas pacientes={pacientesFiltrados}/>}
         {tab==="DETALLE"&&(
-          <TabDetalle pacientes={pacientesFiltrados} canCIC={canCIC} criteriosData={criteriosData}
+          <TabDetalle pacientes={pacientesFiltrados} setPacientes={setPacientes} canCIC={canCIC} criteriosData={criteriosData}
             loadedGrupos={loadedGrupos} onLoadGrupo={handleLoadGrupo}/>
         )}
         {tab==="ANÁLISIS"&&<TabAnalisis pacientes={pacientesFiltrados} savedAnalisis={savedAnalisis} setSavedAnalisis={setSavedAnalisis}/>}
