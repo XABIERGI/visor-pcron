@@ -4150,7 +4150,6 @@ function App() {
       if(!sb) return;
       const {data:{subscription}}=sb.auth.onAuthStateChange(async(event,session)=>{
         if(event==="SIGNED_IN"&&session&&authState==="checking"){
-          setAuthState("loading_profile");
           await loadUserProfile(session.user, sb);
         }
         if(event==="PASSWORD_RECOVERY"){
@@ -4226,8 +4225,6 @@ function App() {
   };
 
   const cargarDatos=async()=>{
-    if(cargandoRef.current) return;
-    cargandoRef.current=true;
     setLoading(true); setProgreso(0);
     try {
       const data=await cargarTodosPacientes(setProgreso, n=>setTotalBD(n));
@@ -4238,7 +4235,6 @@ function App() {
         setPacientes(pacs);
       }
       setProgreso(100);
-      cargandoRef.current=false;
       setTimeout(()=>setLoading(false),400);
       // Fase 2: cargar criterios JSONB en background
       if (pacs !== DEMO_PACIENTES) {
@@ -4246,7 +4242,6 @@ function App() {
         // No hay carga automática — evita 445 llamadas a Supabase al inicio
       }
     } catch(e){
-      cargandoRef.current=false;
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
       setLoading(false);
