@@ -550,24 +550,13 @@ async function cargarCriteriosBackground(pacientes, onProgress, onBatch) {
       .in("id_paciente", ids);
     if (error || !data) { offset += batchSize; continue; }
 
-    // Merge criterios into existing pacientes — remap completo
+    // Fase 2: SOLO añadir _criterios — todos los demás campos ya vienen
+    // correctos de PACIENTES_VISTA (fase 1). No tocar nada mas.
     const updates = {};
     data.forEach(row => {
       const idx = idxMap[row.id_paciente];
       if (idx === undefined) return;
-      const p = pacientes[idx];
-      // Reconstruir fila completa con columnas básicas + criterios descargados
-      const fullRow = {
-        id_paciente: p.id,
-        cic:         p.cic,
-        edad:        p.edad,
-        sexo:        p.sexo === 'H' ? 'Hombre' : 'Mujer',
-        comarca_osi: p.osi,
-        centro:      p.centro,
-        codigo_cupo: p.cupo,
-        criterios:   row.criterios || {},
-      };
-      updates[idx] = mapearPaciente(fullRow);
+      updates[idx] = { ...pacientes[idx], _criterios: row.criterios || {} };
     });
     onBatch(updates);
     offset += batchSize;
@@ -4084,20 +4073,10 @@ function App() {
           (updates) => setPacientes(prev => {
             const map = new Map(prev.map((p,i) => [p.id, i]));
             const next = [...prev];
-            Object.values(updates).forEach(pNew => {
-              const i = map.get(pNew.id);
-              if (i === undefined) return;
-              const pOld = next[i];
-              // Fase 2 enriquece con criterios — conserva campos fiables de fase 1
-              next[i] = {...pNew,
-                pob:         pOld.pob         || pNew.pob,
-                osi:         pOld.osi         || pNew.osi,
-                centro:      pOld.centro      || pNew.centro,
-                cupo:        pOld.cupo        || pNew.cupo,
-                gip_ap:      pOld.gip_ap      !== undefined ? pOld.gip_ap      : pNew.gip_ap,
-                gip_hosp:    pOld.gip_hosp    !== undefined ? pOld.gip_hosp    : pNew.gip_hosp,
-                gip_osarean: pOld.gip_osarean !== undefined ? pOld.gip_osarean : pNew.gip_osarean,
-              };
+            // Solo actualizar _criterios — lo demas ya esta bien de fase 1
+            Object.values(updates).forEach(p => {
+              const i = map.get(p.id);
+              if (i !== undefined) next[i] = p;
             });
             // Cuando tengamos criterios, actualizar criteriosData y marcar grupos cargados
             // Construir criteriosData por grupo desde _criterios de los pacientes actualizados
