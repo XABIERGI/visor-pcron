@@ -856,7 +856,7 @@ function mapearPacienteVista(r) {
     sano:    esSi(r.caract_sano),
     may85:   esSi(r.caract_may85),
     polimed: esSi(r.caract_polimed),
-    demog:   false,
+    demog:   normalizarPob(r.pob) === '08 DEMOGRÁFICOS',
     social:  0,
     co:    parseFloat(r.co)    || 0,
     fr:    parseFloat(r.fr)    || 0,
@@ -2464,7 +2464,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                     <div style={{fontSize:9,color:"#94A3B8"}}>Los datos se cargan automáticamente en segundo plano</div>
                   </div>
                 ) : (
-                  (g.items||[]).map(({k,l,tipo=undefined})=>{
+                  (g.items||[]).map(({k,l:label,tipo=undefined})=>{
                     // Solo calcular valores si el grupo está cargado y el campo es num/txt
                     const getVals = () => {
                       if (!tipo) return [];
@@ -2496,10 +2496,10 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
                           <input type="checkbox" checked={activoBool}
                             onChange={e=>{
-                              if(e.target.checked) add({campo:k,label:l+" = Sí",tipo:"crit_bool",valor:true});
+                              if(e.target.checked) add({campo:k,label:label+" = Sí",tipo:"crit_bool",valor:true});
                               else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_bool")));
                             }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                          <span style={{fontSize:10,color:activo?"#1D4ED8":"#475569",fontWeight:activo?700:400,flex:1}}>{l}</span>
+                          <span style={{fontSize:10,color:activo?"#1D4ED8":"#475569",fontWeight:activo?700:400,flex:1}}>{label}</span>
                         </div>
                         {(tipo==="num"||tipo==="txt")&&(()=>{
                           const vals=getVals();
@@ -2509,7 +2509,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                               const on=activoVal?.valor===v;
                               return <button key={v} onClick={()=>on
                                   ?setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_val")))
-                                  :add({campo:k,label:`${l} = ${v}`,tipo:"crit_val",valor:v})}
+                                  :add({campo:k,label:`${label} = ${v}`,tipo:"crit_val",valor:v})}
                                 style={{padding:"1px 7px",fontSize:9,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,
                                   borderRadius:3,background:on?"#3B82F6":"white",color:on?"white":"#475569",cursor:"pointer"}}>
                                 {v}
@@ -2540,7 +2540,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
                           <input type="checkbox" checked={activosBool}
                             onChange={e=>{
-                              if(e.target.checked) add({campo:k,label:l+" = Sí",tipo:"crit_bool",valor:true});
+                              if(e.target.checked) add({campo:k,label:label+" = Sí",tipo:"crit_bool",valor:true});
                               else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_bool")));
                             }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
                           <span style={{fontSize:10,color:(activosBool||activoVal)?"#1D4ED8":"#475569",fontWeight:(activosBool||activoVal)?700:400,flex:1}}>{l}</span>
