@@ -808,6 +808,7 @@ function mapearPacienteVista(r) {
     console.log("🔍 pob:", r.pob, "→", normalizarPob(r.pob));
     console.log("🔍 caract_geron:", r.caract_geron, "caract_sano:", r.caract_sano, "caract_may85:", r.caract_may85);
     console.log("🔍 medico:", r.medico, "bloque:", r.bloque, "codigo_cupo:", r.codigo_cupo);
+    console.log("🔍 gip_ap:", r.gip_ap, typeof r.gip_ap, "→esSi:", esSi(r.gip_ap));
   }
   const audit = r.auditoria || {};
 
@@ -1730,7 +1731,7 @@ function TabEstadisticas({pacientes}) {
       <Box>
         <ST icon="👥" title="Grupos de Población" sub="N y % por grupo"/>
         {Object.entries(POB_DEF).map(([pob,c])=>{
-          const n=pacientes.filter(p=>p.pob===pob).length;
+          const n=pobCounts[pob]||0;
           return (
             <div key={pob} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
               <div style={{width:160,display:"flex",alignItems:"center",gap:6}}>
@@ -2034,6 +2035,23 @@ function CheckGroup({campo, opciones, colorFn, labelFn, filtros, add, setFiltros
   );
 }
 
+
+// ── SearchBox: input de búsqueda con estado local — no re-renderiza el padre ─
+function SearchBox({placeholder, onSearch, style}) {
+  const [val, setVal] = React.useState("");
+  React.useEffect(() => { onSearch(val); }, [val]);
+  return (
+    <input
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      placeholder={placeholder||"Buscar…"}
+      style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",
+        borderRadius:5,fontSize:10,fontFamily:"inherit",
+        marginBottom:6,boxSizing:"border-box", ...style}}
+    />
+  );
+}
+
 function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo,criteriosData,setTab}) {
   const [saveName,setSaveName]   = useState("");
   const [showSave,setShowSave]   = useState(false);
@@ -2048,6 +2066,12 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
   const toggle = k => setExpanded(e=>({...e,[k]:!e[k]}));
   const nFiltrado = useMemo(()=>applyFiltros(pacientes,filtros).length,[pacientes,filtros]);
+  const pobCounts = useMemo(()=>{const m={};pacientes.forEach(p=>{if(p.pob)m[p.pob]=(m[p.pob]||0)+1;});return m;},[pacientes]);
+  const gipCounts = useMemo(()=>({
+    gip_ap:      pacientes.filter(p=>!!p.gip_ap).length,
+    gip_hosp:    pacientes.filter(p=>!!p.gip_hosp).length,
+    gip_osarean: pacientes.filter(p=>!!p.gip_osarean).length,
+  }),[pacientes]);
   const add = f => setFiltros(p=>[...p,{...f,id:Date.now()+Math.random(),logica:"Y"}]);
   const remove = id => setFiltros(p=>p.filter(x=>x.id!==id));
   const updateLogica = (id,l) => setFiltros(p=>p.map(f=>f.id===id?{...f,logica:l}:f));
@@ -2298,9 +2322,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
                     {/* CENTROS */}
           <Seccion k="centro" expanded={expanded["centro"]} onToggle={toggle} label="Centro de Salud" defaultOpen>
-            <input value={centroTxt} onChange={e=>setCentroTxt(e.target.value)}
-              placeholder="Buscar centro…"
-              style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
+            <SearchBox placeholder="Buscar centro…" onSearch={v=>setCentroTxt(v)}/>
             <div style={{maxHeight:160,overflowY:"auto"}}>
               <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="centro" opciones={centrosFiltrados}/>
             </div>
@@ -2309,9 +2331,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* CUPOS */}
           <Seccion k="cupo" expanded={expanded["cupo"]} onToggle={toggle} label="Código Cupo">
-            <input value={cupoTxt} onChange={e=>setCupoTxt(e.target.value)}
-              placeholder="Buscar cupo…"
-              style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
+            <SearchBox placeholder="Buscar cupo…" onSearch={v=>setCupoTxt(v)}/>
             <div style={{maxHeight:140,overflowY:"auto"}}>
               <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="cupo" opciones={cuposDisp.filter(c=>String(c).includes(cupoTxt)).slice(0,50)}/>
             </div>
@@ -2323,12 +2343,9 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             {(()=>{
               const medicosDisp=[...new Set(pacientes.map(p=>p.medico).filter(Boolean))].sort();
               if(!medicosDisp.length) return <div style={{fontSize:10,color:"#94A3B8",padding:"4px"}}>Sin datos de médico disponibles</div>;
-              const [txt,setTxt] = [medicoTxt, setMedicoTxt];
-              const filtered = medicosDisp.filter(m=>m.toLowerCase().includes(txt.toLowerCase()));
+              const filtered = medicosDisp.filter(m=>m.toLowerCase().includes(medicoTxt.toLowerCase()));
               return <>
-                <input value={medicoTxt} onChange={e=>setMedicoTxt(e.target.value)}
-                  placeholder="Buscar médico…"
-                  style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
+                <SearchBox placeholder="Buscar médico…" onSearch={v=>setMedicoTxt(v)}/>
                 <div style={{maxHeight:140,overflowY:"auto"}}>
                   <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="medico" opciones={filtered.slice(0,50)} labelFn={o=>o}/>
                 </div>
@@ -2366,7 +2383,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
               {[["gip_ap","GIP AP","#0284C7"],["gip_hosp","GIP PCRON Hosp.","#7C3AED"],["gip_osarean","GIP OSAREAN","#059669"]].map(([campo,lbl,col])=>{
                 const onSi=filtros.some(f=>f.campo===campo&&f.valor===true);
                 const onNo=filtros.some(f=>f.campo===campo&&f.valor===false);
-                const n=pacientes.filter(p=>p[campo]===true).length;
+                const n=gipCounts[campo]||0;
                 return <div key={campo} style={{display:"flex",alignItems:"center",gap:4}}>
                   <span style={{fontSize:10,color:"#475569",flex:1,fontWeight:500}}>{lbl}</span>
                   <span style={{fontSize:9,color:"#94A3B8",marginRight:2}}>{n.toLocaleString()}</span>
@@ -2412,7 +2429,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             <div style={{display:"flex",flexDirection:"column",gap:3}}>
               {Object.entries(POB_DEF).map(([pob,c])=>{
                 const on=filtros.some(f=>f.campo==="pob"&&f.valor===pob);
-                const n=pacientes.filter(p=>p.pob===pob).length;
+                const n=pobCounts[pob]||0;
                 return <button key={pob} onClick={()=>{
                     if(on) setFiltros(p=>p.filter(f=>f.campo!=="pob"));
                     else { setFiltros(p=>p.filter(f=>f.campo!=="pob")); add({campo:"pob",label:pob,tipo:"select",valor:pob}); }
@@ -4156,6 +4173,7 @@ function App() {
   },[loadedGrupos]);
 
   const canCIC=ROLES_DEF[role]?.cic||false;
+
   const pacientesFiltrados=useMemo(()=>applyFiltros(pacientes,filtros),[pacientes,filtros]);
   const pctTotal=pacientes.length>0?+pct(pacientesFiltrados.length,pacientes.length):0;
 
