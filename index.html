@@ -2219,8 +2219,8 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:0}}>
-      <BarraFiltros/>
-      <BarraBusqueda/>
+      {BarraFiltros()}
+      {BarraBusqueda()}
 
       {/* 3 COLUMNAS */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
@@ -2259,21 +2259,24 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* OSI */}
           <Seccion k="osi" label="OSI" defaultOpen>
-            {osiDisp.map(o=>{
-              const col=o==="01 OSID"?"#1D4ED8":o==="02 OSIT"?"#059669":"#64748B";
-              const on=filtros.some(f=>f.campo==="osi"&&f.valor===o);
-              return (
-                <label key={o} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 6px",borderRadius:5,
-                  background:on?"#EFF6FF":"transparent",border:on?"1px solid #BFDBFE":"1px solid transparent"}}>
-                  <input type="checkbox" checked={on}
-                    onChange={e=>{
-                      if(e.target.checked) add({campo:"osi",label:`OSI = ${o}`,tipo:"select",valor:o});
-                      else setFiltros(p=>p.filter(f=>!(f.campo==="osi"&&f.valor===o)));
-                    }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                  <span style={{fontSize:11,color:on?"#1D4ED8":col,fontWeight:on?700:400}}>{o}</span>
-                </label>
-              );
-            })}
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {osiDisp.map(o=>{
+                const col=o==="01 OSID"?"#1D4ED8":o==="02 OSIT"?"#059669":"#64748B";
+                const on=filtros.some(f=>f.campo==="osi"&&f.valor===o);
+                const n=pacientes.filter(p=>p.osi===o).length;
+                return <button key={o} onClick={()=>{
+                    if(on) setFiltros(p=>p.filter(f=>!(f.campo==="osi"&&f.valor===o)));
+                    else add({campo:"osi",label:o,tipo:"select",valor:o});
+                  }}
+                  style={{padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer",borderRadius:6,
+                    border:`2px solid ${on?col:"#E2E8F0"}`,
+                    background:on?col:"white",color:on?"white":col,
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                  <span>{o.replace("01 ","").replace("02 ","").replace("03 ","")}</span>
+                  <span style={{fontSize:8,fontWeight:400,opacity:.8}}>{n.toLocaleString()}</span>
+                </button>;
+              })}
+            </div>
           </Seccion>
 
                     {/* CENTROS */}
@@ -2304,24 +2307,52 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* BLOQUE CCEE */}
           <Seccion k="bloque" label="Bloque CCEE Referencia">
-            <CheckGroup campo="bloque" opciones={bloquesDisp.length>0?bloquesDisp:BLOQUES_PCRON}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3}}>
+              {(bloquesDisp.length>0?bloquesDisp:BLOQUES_PCRON).map(b=>{
+                const val=typeof b==="object"?b.value:b;
+                const lbl=typeof b==="object"?b.label:String(b);
+                const on=filtros.some(f=>f.campo==="bloque"&&f.valor===val);
+                return <button key={val} onClick={()=>{
+                    if(on) setFiltros(p=>p.filter(f=>!(f.campo==="bloque"&&f.valor===val)));
+                    else add({campo:"bloque",label:lbl,tipo:"select",valor:val});
+                  }}
+                  style={{padding:"5px 8px",fontSize:10,fontWeight:on?700:500,cursor:"pointer",
+                    borderRadius:6,border:`2px solid ${on?"#6366F1":"#E2E8F0"}`,
+                    background:on?"#6366F1":"white",color:on?"white":"#475569",
+                    textAlign:"left",display:"flex",alignItems:"center",gap:4}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:on?"white":"#6366F1",flexShrink:0}}/>
+                  {lbl}
+                </button>;
+              })}
+            </div>
           </Seccion>
 
 
           {/* GIP */}
           <Seccion k="gip" label="Programas GIP">
-            {[["gip_ap","GIP AP"],["gip_hosp","GIP PCRON Hosp."],["gip_osarean","GIP OSAREAN"]].map(([campo,label])=>(
-              <div key={campo} style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
-                <span style={{fontSize:11,flex:1,color:"#475569"}}>{label}</span>
-                {[["Sí",true,"#059669"],["No",false,"#DC2626"]].map(([l,v,c])=>{
-                  const on=filtros.some(f=>f.campo===campo&&f.valor===v);
-                  return <button key={l} onClick={()=>on?setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===v))):add({campo,label:`${label} = ${l}`,tipo:"bool",valor:v})}
-                    style={{padding:"2px 8px",fontSize:10,border:`1px solid ${on?c:"#E2E8F0"}`,borderRadius:4,background:on?c+"15":"white",color:on?c:"#94A3B8",cursor:"pointer",fontWeight:on?700:400}}>
-                    {l}
-                  </button>;
-                })}
-              </div>
-            ))}
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {[["gip_ap","GIP AP","#0284C7"],["gip_hosp","GIP PCRON Hosp.","#7C3AED"],["gip_osarean","GIP OSAREAN","#059669"]].map(([campo,lbl,col])=>{
+                const onSi=filtros.some(f=>f.campo===campo&&f.valor===true);
+                const onNo=filtros.some(f=>f.campo===campo&&f.valor===false);
+                const n=pacientes.filter(p=>p[campo]).length;
+                return <div key={campo} style={{display:"flex",alignItems:"center",gap:4}}>
+                  <span style={{fontSize:10,color:"#475569",flex:1,fontWeight:500}}>{lbl}</span>
+                  <span style={{fontSize:9,color:"#94A3B8",marginRight:4}}>{n.toLocaleString()}</span>
+                  {[["Sí",true],["No",false]].map(([txt,val])=>{
+                    const on=val===true?onSi:onNo;
+                    return <button key={txt} onClick={()=>{
+                        if(on) setFiltros(p=>p.filter(f=>!(f.campo===campo&&f.valor===val)));
+                        else { setFiltros(p=>p.filter(f=>f.campo!==campo)); add({campo,label:`${lbl} = ${txt}`,tipo:"bool",valor:val}); }
+                      }}
+                      style={{padding:"3px 10px",fontSize:10,fontWeight:on?700:500,cursor:"pointer",
+                        borderRadius:5,border:`2px solid ${on?col:"#E2E8F0"}`,
+                        background:on?col:"white",color:on?"white":col}}>
+                      {txt}
+                    </button>;
+                  })}
+                </div>;
+              })}
+            </div>
           </Seccion>
 
           {/* CENTRO GERONTOLÓGICO */}
@@ -2355,26 +2386,45 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
           {/* POBLACIÓN */}
           <Seccion k="pob" label="Grupo de Población" defaultOpen>
-            <CheckGroup campo="pob" opciones={Object.keys(POB_DEF)} colorFn={o=>POB_DEF[o]?.bg||"#475569"}/>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {Object.entries(POB_DEF).map(([pob,c])=>{
+                const on=filtros.some(f=>f.campo==="pob"&&f.valor===pob);
+                const n=pacientes.filter(p=>p.pob===pob).length;
+                return <button key={pob} onClick={()=>{
+                    // Exclusivo: quitar cualquier filtro pob anterior y añadir este
+                    if(on) setFiltros(p=>p.filter(f=>f.campo!=="pob"));
+                    else { setFiltros(p=>p.filter(f=>f.campo!=="pob")); add({campo:"pob",label:pob,tipo:"select",valor:pob}); }
+                  }}
+                  style={{padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer",borderRadius:6,
+                    border:`2px solid ${on?c.bg:"#E2E8F0"}`,
+                    background:on?c.bg:c.lt,
+                    color:on?"white":c.bg,
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                  <span>{c.short}</span>
+                  <span style={{fontSize:8,fontWeight:400,opacity:.8}}>{n.toLocaleString()}</span>
+                </button>;
+              })}
+            </div>
           </Seccion>
 
           {/* CARACTERÍSTICAS / PERFILES */}
           <Seccion k="perfiles" label="Características / Perfiles" defaultOpen>
-            {CARACTS_DEF.map(c=>{
-              const on=filtros.some(f=>f.campo===c.k&&f.valor===true);
-              return (
-                <label key={c.k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 6px",borderRadius:5,marginBottom:2,
-                  background:on?c.c+"10":"transparent",border:on?`1px solid ${c.c}30`:"1px solid transparent"}}>
-                  <input type="checkbox" checked={on}
-                    onChange={e=>{
-                      if(e.target.checked) add({campo:c.k,label:`Perfil: ${c.l}`,tipo:"bool",valor:true});
-                      else setFiltros(p=>p.filter(f=>!(f.campo===c.k&&f.valor===true)));
-                    }} style={{cursor:"pointer",accentColor:c.c}}/>
-                  <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:c.c,flexShrink:0}}/>
-                  <span style={{fontSize:11,color:on?c.c:"#475569",fontWeight:on?700:400}}>{c.l}</span>
-                </label>
-              );
-            })}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3}}>
+              {CARACTS_DEF.map(c=>{
+                const on=filtros.some(f=>f.campo===c.k&&f.valor===true);
+                return <button key={c.k} onClick={()=>{
+                    if(on) setFiltros(p=>p.filter(f=>!(f.campo===c.k&&f.valor===true)));
+                    else add({campo:c.k,label:c.l,tipo:"bool",valor:true});
+                  }}
+                  style={{padding:"5px 8px",fontSize:10,fontWeight:on?700:500,cursor:"pointer",
+                    borderRadius:6,border:`2px solid ${on?c.c:"#E2E8F0"}`,
+                    background:on?c.c:"white",color:on?"white":c.c,
+                    display:"flex",alignItems:"center",gap:5,textAlign:"left"}}>
+                  <span style={{width:7,height:7,borderRadius:"50%",background:on?"white":c.c,flexShrink:0}}/>
+                  <span style={{flex:1}}>{c.l}</span>
+                </button>;
+              })}
+            </div>
           </Seccion>
 
           {/* ÍNDICES */}
@@ -4046,27 +4096,9 @@ function App() {
       setTimeout(()=>setLoading(false),400);
       // Fase 2: cargar criterios JSONB en background
       if (pacs !== DEMO_PACIENTES) {
-        // Marcar todos los grupos como "cargando" inmediatamente
-        setLoadedGrupos(GRUPOS_CRITERIOS.map(g=>g.id));
-        cargarCriteriosBackground(
-          pacs,
-          (pct) => { if(pct % 20 === 0) console.log(`Criterios: ${pct}%`); },
-          (updates, isLast) => {
-            Object.assign(allUpdates, updates);
-            if (isLast) {
-              setPacientes(prev => {
-                const map = new Map(prev.map((p,i) => [p.id, i]));
-                const next = [...prev];
-                Object.values(allUpdates).forEach(p => {
-                  const i = map.get(p.id);
-                  if (i !== undefined) next[i] = p;
-                });
-                return next;
-              });
-              setLoadedGrupos(GRUPOS_CRITERIOS.map(g=>g.id));
-            }
-          }
-        );      }
+        // Criterios se cargan bajo demanda (panel filtros o modal paciente)
+        // No hay carga automática — evita 445 llamadas a Supabase al inicio
+      }
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
