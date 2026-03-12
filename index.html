@@ -4146,11 +4146,13 @@ function App() {
   // Escuchar cambios de sesión (útil para magic links y tokens)
   useEffect(()=>{
     let unsub;
+    let handled = false; // guard — solo procesar el primer evento
     const setup=async()=>{
       const sb=await getSupabase();
       if(!sb) return;
       const {data:{subscription}}=sb.auth.onAuthStateChange(async(event,session)=>{
-        if(event==="SIGNED_IN"&&session&&authState==="checking"){
+        if(event==="SIGNED_IN"&&session&&!handled){
+          handled=true;
           await loadUserProfile(session.user, sb);
         }
         if(event==="PASSWORD_RECOVERY"){
@@ -4158,11 +4160,6 @@ function App() {
         }
       });
       unsub=subscription;
-      // Fallback: si ya hay sesión activa, onAuthStateChange puede no disparar SIGNED_IN
-      const {data:{session}} = await sb.auth.getSession();
-      if(session && authState==="checking") {
-        await loadUserProfile(session.user, sb);
-      }
     };
     setup();
     return ()=>unsub?.unsubscribe?.();
@@ -4234,19 +4231,11 @@ function App() {
     setLoading(true); setProgreso(0);
     try {
       const data=await cargarTodosPacientes(setProgreso, n=>setTotalBD(n));
-      if(data.length===0){ setPacientes(DEMO_PACIENTES); }
-      else {
-        // Deduplicar por id por si acaso
-        const seen=new Set(); const pacs=data.filter(p=>{ if(seen.has(p.id)) return false; seen.add(p.id); return true; });
-        setPacientes(pacs);
-      }
+      const seen=new Set();
+      const pacs=data.length===0 ? DEMO_PACIENTES : data.filter(p=>{ if(seen.has(p.id)) return false; seen.add(p.id); return true; });
+      setPacientes(pacs);
       setProgreso(100);
       setTimeout(()=>setLoading(false),400);
-      // Fase 2: cargar criterios JSONB en background
-      if (pacs !== DEMO_PACIENTES) {
-        // Criterios se cargan bajo demanda (panel filtros o modal paciente)
-        // No hay carga automática — evita 445 llamadas a Supabase al inicio
-      }
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
@@ -4256,7 +4245,7 @@ function App() {
 
   // ── CARGA INICIAL (solo si ya autenticado) ────────────────────────────────
   useEffect(()=>{
-    if(authState!=="app") return;
+    if(authState==="app" && pacientes.length===0) cargarDatos();
   },[authState]);
 
   // ── CARGA LAZY CRITERIOS ─────────────────────────────────────────────────
