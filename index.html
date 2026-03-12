@@ -1925,10 +1925,8 @@ function TabDetalle({pacientes,setPacientes,canCIC,criteriosData,loadedGrupos,on
                     if(sb){
                       const {data}=await sb.from("PACIENTES").select("criterios").eq("id_paciente",p.id).single();
                       if(data?.criterios) {
-                        const mapped=mapearPaciente({...p,id_paciente:p.id,comarca_osi:p.osi,codigo_cupo:p.cupo,criterios:data.criterios});
-                        setPacientes(prev=>prev.map(x=>x.id===p.id?{...mapped,pob:p.pob,osi:p.osi,centro:p.centro,cupo:p.cupo,gip_ap:p.gip_ap,gip_hosp:p.gip_hosp,gip_osarean:p.gip_osarean}:x));
-                        setPat({...mapped,pob:p.pob,osi:p.osi,centro:p.centro,cupo:p.cupo,gip_ap:p.gip_ap,gip_hosp:p.gip_hosp,gip_osarean:p.gip_osarean});
-                        return;
+                        const patConCrit = {...p, _criterios: data.criterios};
+                        setPat(patConCrit); return;
                       }
                     }
                   }
@@ -2039,11 +2037,15 @@ function CheckGroup({campo, opciones, colorFn, labelFn, filtros, add, setFiltros
 // ── SearchBox: input de búsqueda con estado local — no re-renderiza el padre ─
 function SearchBox({placeholder, onSearch, style}) {
   const [val, setVal] = React.useState("");
-  React.useEffect(() => { onSearch(val); }, [val]);
+  const handleChange = React.useCallback(e => {
+    const v = e.target.value;
+    setVal(v);
+    onSearch(v);
+  }, []); // eslint-disable-line
   return (
     <input
       value={val}
-      onChange={e => setVal(e.target.value)}
+      onChange={handleChange}
       placeholder={placeholder||"Buscar…"}
       style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",
         borderRadius:5,fontSize:10,fontFamily:"inherit",
@@ -2559,7 +2561,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                     <div style={{fontSize:9,color:"#94A3B8",marginTop:4}}>Solo se cargan al pulsar</div>
                   </div>
                 ) : (
-                  (g.items||[]).map(({k,l:itemLabel,tipo=undefined})=>{
+                  (g.items||[]).map(({k,l:rawLabel,tipo=undefined})=>{ const itemLabel=rawLabel||k||'?';
                     const activoBool = filtros.some(f=>f.campo===k&&f.tipo==="crit_bool");
                     const activoVal  = filtros.find(f=>f.campo===k&&f.tipo==="crit_val");
                     const activo = activoBool || !!activoVal;
