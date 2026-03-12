@@ -512,25 +512,21 @@ function applyFiltros(pacs, filtros) {
 async function cargarTodosPacientes(onProgress) {
   const sb = await getSupabase();
   if (!sb) return [];
-  const batchSize = 1000; // Supabase max por request
+  const batchSize = 1000;
   let all = [], offset = 0;
-  // Usa PACIENTES_VISTA — campos clave extraídos del JSONB server-side
   while (true) {
     const {data, error, count} = await sb
-      .from("PACIENTES_VISTA")
-      .select("*", {count:"exact"})
+      .from("PACIENTES")
+      .select("id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo,criterios", {count:"exact"})
       .range(offset, offset + batchSize - 1);
     if (error) { console.error("Error carga:", error); break; }
     if (!data || data.length === 0) break;
-    if (offset === 0) {
-      console.log("COLUMNAS VISTA:", Object.keys(data[0]));
-      console.log("TOTAL en BD:", count);
-    }
-    all = [...all, ...data.map(r => mapearPacienteVista(r))];
+    if (offset === 0) console.log("TOTAL en BD:", count);
+    all = [...all, ...data.map(r => mapearPaciente(r))];
     offset += data.length;
     const total = count || META.totalBD;
     onProgress(Math.min(98, Math.round(offset / total * 100)));
-    if (data.length < batchSize) break; // último batch
+    if (data.length < batchSize) break;
   }
   return all;
 }
@@ -800,16 +796,7 @@ function normalizarPob(v) {
 
 let _debugLogged = false;
 function mapearPacienteVista(r) {
-  if (!_debugLogged) {
-    _debugLogged = true;
-    const sample = {};
-    Object.keys(r).forEach(k => { try { sample[k] = r[k]; } catch(e) {} });
-    console.log("🔍 PRIMERA FILA CAMPOS:", Object.keys(r));
-    console.log("🔍 pob:", r.pob, "→", normalizarPob(r.pob));
-    console.log("🔍 caract_geron:", r.caract_geron, "caract_sano:", r.caract_sano, "caract_may85:", r.caract_may85);
-    console.log("🔍 medico:", r.medico, "bloque:", r.bloque, "codigo_cupo:", r.codigo_cupo);
-    console.log("🔍 gip_ap:", r.gip_ap, typeof r.gip_ap, "→esSi:", esSi(r.gip_ap));
-  }
+
   const audit = r.auditoria || {};
 
   let osi = r.comarca_osi || '';
