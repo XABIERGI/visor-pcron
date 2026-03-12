@@ -76,8 +76,8 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 const SUPABASE_URL   = "https://qbtdbnilmrvjmwoefwmw.supabase.co";
 const SUPABASE_ANON  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidGRibmlsbXJ2am13b2Vmd213Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTIwNzcsImV4cCI6MjA4MzUyODA3N30.u_h9Qzk40ml_hWNIW00bGKSrCG4Y9SeUyAGllUGITic";
 const GDRIVE_FOLDER       = "1u5yWwAqujqtR7ts9npVyAQyfMk63_lwD";  // Carpeta VISOR PCRON en Drive
-const GDRIVE_TABLAS = "https://drive.google.com/drive/folders/1olB7zXvYk3vlgYBSBtF-u9g1va5Frb9m";
-const GDRIVE_DOCS   = "https://drive.google.com/drive/folders/1olB7zXvYk3vlgYBSBtF-u9g1va5Frb9m";
+const GDRIVE_TABLAS = "https://drive.google.com/drive/u/1/folders/1olB7zXvYk3vlgYBSBtF-u9g1va5Frb9m";
+const GDRIVE_DOCS   = "https://drive.google.com/drive/u/1/folders/1olB7zXvYk3vlgYBSBtF-u9g1va5Frb9m";
 const COLAB_URL     = "https://colab.research.google.com/drive/";  // Se abre Drive para buscar el .ipynb
 
 // ── Supabase client ───────────────────────────────────────────────────────
@@ -125,8 +125,7 @@ const POB_DEF = {
   "05 HF AP":               {bg:"#0284C7",lt:"#E0F2FE",short:"HFAP"},
   "06 MAYOR COMORBILIDAD":  {bg:"#059669",lt:"#D1FAE5",short:"COMORB"},
   "07 MAYOR SANO":          {bg:"#65A30D",lt:"#ECFCCB",short:"SANO"},
-  "08 MAYOR 85 SANO":       {bg:"#78716C",lt:"#F5F5F4",short:"M85"},
-  "09 DEMOGRÁFICOS":        {bg:"#6B7280",lt:"#F3F4F6",short:"DEMOG"},
+  "08 DEMOGRÁFICOS":        {bg:"#6B7280",lt:"#F3F4F6",short:"DEMOG"},
 };
 
 const CARACTS_DEF = [
@@ -793,9 +792,9 @@ function normalizarPob(v) {
   if (s.includes("HF HOSP") || (s.includes("HF") && s.includes("HOSP"))) return "04 HF HOSPITALARIO";
   if (s.includes("HF AP") || (s.includes("HF") && s.includes("AP")))     return "05 HF AP";
   if (s.includes("COMORB"))         return "06 MAYOR COMORBILIDAD";
-  if (s.includes("85"))             return "08 MAYOR 85 SANO";
+  if (s.includes("DEMOG"))          return "08 DEMOGRÁFICOS";
+  if (s.includes("SANO") && s.includes("85")) return "08 DEMOGRÁFICOS"; // >85 es característica
   if (s.includes("SANO"))           return "07 MAYOR SANO";
-  if (s.includes("DEMOG"))          return "09 DEMOGRÁFICOS";
   return v; // devolver original si no se reconoce
 }
 
@@ -1155,7 +1154,7 @@ function PantallaCarga({progreso, error, onRetry}) {
       <div style={{textAlign:"center",padding:32}}>
         <div style={{fontSize:48,marginBottom:16}}>🏥</div>
         <div style={{color:"white",fontSize:24,fontWeight:800,letterSpacing:1,marginBottom:4}}>VISOR PCRON</div>
-        <div style={{color:"#64748B",fontSize:13,marginBottom:32}}>Osakidetza · {META.version}</div>
+        <div style={{color:"#64748B",fontSize:13,marginBottom:32}}>Osakidetza · {META.version} · Actualizado: {META.fechaAct}</div>
         {error ? (
           <div>
             <div style={{color:"#FCA5A5",fontSize:14,marginBottom:12}}>❌ {error}</div>
@@ -2137,19 +2136,15 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
       <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 14px"}}>
         <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:6}}>🔍 BÚSQUEDA RÁPIDA — ID · CIC · Cupo · Centro</div>
         <div style={{position:"relative"}}>
-          <input value={busqTexto} onChange={e=>{
-            const v=e.target.value;
-            setBusqTexto(v);
-            if(v.length>=3){
-              // Buscar coincidencia en los campos de texto
-              const campos=["id","cic","cupo","centro"];
-              const encontrado=pacientes.find(p=>campos.some(c=>String(p[c]||"").toLowerCase().includes(v.toLowerCase())));
-              if(encontrado){
-                const campo=["id","cic","cupo","centro"].find(c=>String(encontrado[c]||"").toLowerCase().includes(v.toLowerCase()));
-                if(campo) add({campo,label:`${campo.toUpperCase()} contiene "${v}"`,tipo:"texto",valor:v});
+          <input value={busqTexto} onChange={e=>setBusqTexto(e.target.value)}
+            onKeyDown={e=>{
+              if(e.key==="Enter" && busqTexto.trim().length>=2){
+                const v=busqTexto.trim();
+                const campos=["id","cic","cupo","centro"];
+                const campo=campos.find(c=>pacientes.some(p=>String(p[c]||"").toLowerCase().includes(v.toLowerCase())))||"id";
+                add({campo,label:`Texto: "${v}"`,tipo:"texto",valor:v});
                 setBusqTexto("");
               }
-            }
           }} placeholder="Escribe ID, CIC, cupo o centro (mín. 3 caracteres)…"
             style={{width:"100%",padding:"6px 10px",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"inherit",boxSizing:"border-box"}}/>
         </div>
@@ -2160,7 +2155,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
       <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:10,padding:"10px 14px"}}>
         <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:6}}>📂 LISTA DE PACIENTES — Subir Excel (col ID o CIC)</div>
         <input type="file" accept=".xlsx,.xls"
-          onChange={e=>analizarExcel(e.target.files[0])}
+          accept=".xlsx,.xls" onChange={e=>analizarExcel(e.target.files[0])}
           style={{fontSize:10,color:"#475569",width:"100%",marginBottom:6}}/>
         {listaResult&&!listaResult.error&&(
           <div style={{fontSize:10,lineHeight:1.7}}>
@@ -2517,7 +2512,7 @@ function TabAnalisis({pacientes,savedAnalisis,setSavedAnalisis}) {
     {k:"sano",   l:"Mayor Sano",       tipo:"bool"},
     {k:"may85",  l:"Mayor 85",         tipo:"bool"},
     {k:"polimed",l:"Polimedicado",     tipo:"bool"},
-    {k:"social", l:"Carga Social",     tipo:"bool"},
+    {k:"social", l:"Carga Social",     tipo:"range", min:0, max:10},
     {k:"gip_ap", l:"GIP AP",          tipo:"bool"},
     {k:"gip_hosp",l:"GIP Hosp.",      tipo:"bool"},
     {k:"gip_osarean",l:"GIP OSAREAN", tipo:"bool"},
@@ -3578,7 +3573,7 @@ function TabAdministracion({pacientes}) {
                 <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{docs.length} documentos · Repositorio técnico y funcional</div>
               </div>
               <div style={{display:"flex",gap:8}}>
-                <a href="https://drive.google.com/drive/folders/1olB7zXvYk3vlgYBSBtF-u9g1va5Frb9m"
+                <a href="https://drive.google.com/drive/u/1/folders/1olB7zXvYk3vlgYBSBtF-u9g1va5Frb9m"
                   target="_blank" rel="noopener noreferrer"
                   style={{padding:"7px 14px",background:"#059669",border:"none",borderRadius:6,color:"white",fontSize:12,fontWeight:700,cursor:"pointer",textDecoration:"none"}}>
                   📁 Abrir en Drive
@@ -3979,7 +3974,18 @@ function App() {
       setPacientes(pacs);
       setProgreso(100);
       setTimeout(()=>setLoading(false),400);
-      // PACIENTES_VISTA ya incluye todos los campos necesarios — sin background
+      // Fase 2: cargar criterios JSONB en background (médico, GIP, bloque, índices, auditoría)
+      if (pacs !== DEMO_PACIENTES) {
+        cargarCriteriosBackground(
+          pacs,
+          (pct) => console.log(`Criterios: ${pct}%`),
+          (updates) => setPacientes(prev => {
+            const next = [...prev];
+            Object.entries(updates).forEach(([idx, p]) => { next[idx] = p; });
+            return next;
+          })
+        );
+      }
     } catch(e){
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
