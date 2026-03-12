@@ -1991,26 +1991,25 @@ function TabDetalle({pacientes,setPacientes,canCIC,criteriosData,loadedGrupos,on
 // ════════════════════════════════════════════════════════════════════════════
 // ❿  TAB FILTROS v6
 // ════════════════════════════════════════════════════════════════════════════
-function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo,criteriosData,setTab}) {
-  const [saveName,setSaveName]   = useState("");
-  const [showSave,setShowSave]   = useState(false);
-  const [busqTexto,setBusqTexto] = useState("");
-  const [listaPacs,setListaPacs] = useState("");
-  const [showLista,setShowLista] = useState(false);
-  const [listaResult,setListaResult] = useState(null);
-  const [centroTxt,setCentroTxt]   = useState("");
-  const [medicoTxt,setMedicoTxt]   = useState("");
-  const [cupoTxt,setCupoTxt]       = useState("");
-  const [expanded,setExpanded]     = useState({osi:true,centro:true,pob:true,perfiles:true});
+// ── Seccion: acordeón reutilizable ─────────────────────────────────────────
+function Seccion({k,label,badge,badgeColor,children,defaultOpen,expanded,onToggle}) {
+  return (
+    <div style={{border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden",marginBottom:6}}>
+      <div onClick={()=>onToggle(k)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 11px",background:"#F8FAFC",cursor:"pointer",userSelect:"none"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#1E293B"}}>{label}</span>
+          {badge&&<span style={{fontSize:8,background:badgeColor||"#DBEAFE",color:badgeColor?"white":"#1D4ED8",padding:"1px 5px",borderRadius:3,fontWeight:700}}>{badge}</span>}
+        </div>
+        <span style={{fontSize:9,color:"#94A3B8"}}>{expanded?"▲":"▼"}</span>
+      </div>
+      {expanded&&<div style={{padding:"10px 11px"}}>{children}</div>}
+    </div>
+  );
+}
 
-  const toggle = k => setExpanded(e=>({...e,[k]:!e[k]}));
-  const nFiltrado = applyFiltros(pacientes,filtros).length;
-  const add = f => setFiltros(p=>[...p,{...f,id:Date.now()+Math.random(),logica:"Y"}]);
-  const remove = id => setFiltros(p=>p.filter(x=>x.id!==id));
-  const updateLogica = (id,l) => setFiltros(p=>p.map(f=>f.id===id?{...f,logica:l}:f));
-
-  // CheckGroup local — accede a filtros/add/setFiltros por closure
-  const CheckGroup = ({campo, opciones, colorFn, labelFn}) => (
+// ── CheckGroup: lista de checkboxes ─────────────────────────────────────────
+function CheckGroup({campo, opciones, colorFn, labelFn, filtros, add, setFiltros}) {
+  return (
     <div>
       {(opciones||[]).map(op=>{
         const val = typeof op==="object"?op.value:op;
@@ -2033,6 +2032,26 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
       })}
     </div>
   );
+}
+
+function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,loadedGrupos,onLoadGrupo,criteriosData,setTab}) {
+  const [saveName,setSaveName]   = useState("");
+  const [showSave,setShowSave]   = useState(false);
+  const [busqTexto,setBusqTexto] = useState("");
+  const [listaPacs,setListaPacs] = useState("");
+  const [showLista,setShowLista] = useState(false);
+  const [listaResult,setListaResult] = useState(null);
+  const [centroTxt,setCentroTxt]   = useState("");
+  const [medicoTxt,setMedicoTxt]   = useState("");
+  const [cupoTxt,setCupoTxt]       = useState("");
+  const [expanded,setExpanded]     = useState({osi:true,centro:true,pob:true,perfiles:true});
+
+  const toggle = k => setExpanded(e=>({...e,[k]:!e[k]}));
+  const nFiltrado = useMemo(()=>applyFiltros(pacientes,filtros).length,[pacientes,filtros]);
+  const add = f => setFiltros(p=>[...p,{...f,id:Date.now()+Math.random(),logica:"Y"}]);
+  const remove = id => setFiltros(p=>p.filter(x=>x.id!==id));
+  const updateLogica = (id,l) => setFiltros(p=>p.map(f=>f.id===id?{...f,logica:l}:f));
+
 
   // ── FILTROS ENCADENADOS: opciones disponibles según contexto actual ──
   // Para cada campo, calculamos las opciones que tienen pacientes en el
@@ -2213,21 +2232,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
     </div>
   );
 
-  const Seccion=({k,label,badge,badgeColor,children,defaultOpen})=>{
-    if(!(k in expanded)&&defaultOpen) expanded[k]=true;
-    return (
-      <div style={{border:"1px solid #E2E8F0",borderRadius:8,overflow:"hidden",marginBottom:6}}>
-        <div onClick={()=>toggle(k)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 11px",background:"#F8FAFC",cursor:"pointer",userSelect:"none"}}>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:11,fontWeight:700,color:"#1E293B"}}>{label}</span>
-            {badge&&<span style={{fontSize:8,background:badgeColor||"#DBEAFE",color:badgeColor?"white":"#1D4ED8",padding:"1px 5px",borderRadius:3,fontWeight:700}}>{badge}</span>}
-          </div>
-          <span style={{fontSize:9,color:"#94A3B8"}}>{expanded[k]?"▲":"▼"}</span>
-        </div>
-        {expanded[k]&&<div style={{padding:"10px 11px"}}>{children}</div>}
-      </div>
-    );
-  };
+
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:0}}>
@@ -2244,7 +2249,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </div>
 
           {/* SEXO */}
-          <Seccion k="sexo" label="Sexo">
+          <Seccion k="sexo" expanded={expanded["sexo"]} onToggle={toggle} label="Sexo">
             <div style={{display:"flex",gap:6}}>
               {[["H","♂ Hombre","#1D4ED8","#EFF6FF"],["M","♀ Mujer","#BE185D","#FDF2F8"]].map(([v,l,c,bg])=>{
                 const on=filtros.some(f=>f.campo==="sexo"&&f.valor===v);
@@ -2257,7 +2262,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* EDAD */}
-          <Seccion k="edad" label="Edad">
+          <Seccion k="edad" expanded={expanded["edad"]} onToggle={toggle} label="Edad">
             <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
               {[["< 65",0,64],["65–74",65,74],["75–84",75,84],["85–94",85,94],["≥ 95",95,150]].map(([l,mn,mx])=>{
                 const on=filtros.some(f=>f.campo==="edad"&&f.min===mn);
@@ -2270,7 +2275,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* OSI */}
-          <Seccion k="osi" label="OSI" defaultOpen>
+          <Seccion k="osi" expanded={expanded["osi"]} onToggle={toggle} label="OSI" defaultOpen>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
               {osiDisp.map(o=>{
                 const col=o==="01 OSID"?"#1D4ED8":o==="02 OSIT"?"#059669":"#64748B";
@@ -2292,29 +2297,29 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
                     {/* CENTROS */}
-          <Seccion k="centro" label="Centro de Salud" defaultOpen>
+          <Seccion k="centro" expanded={expanded["centro"]} onToggle={toggle} label="Centro de Salud" defaultOpen>
             <input value={centroTxt} onChange={e=>setCentroTxt(e.target.value)}
               placeholder="Buscar centro…"
               style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
             <div style={{maxHeight:160,overflowY:"auto"}}>
-              <CheckGroup campo="centro" opciones={centrosFiltrados}/>
+              <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="centro" opciones={centrosFiltrados}/>
             </div>
             {centrosFiltrados.length===0&&<div style={{fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>Sin centros disponibles</div>}
           </Seccion>
 
           {/* CUPOS */}
-          <Seccion k="cupo" label="Código Cupo">
+          <Seccion k="cupo" expanded={expanded["cupo"]} onToggle={toggle} label="Código Cupo">
             <input value={cupoTxt} onChange={e=>setCupoTxt(e.target.value)}
               placeholder="Buscar cupo…"
               style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
             <div style={{maxHeight:140,overflowY:"auto"}}>
-              <CheckGroup campo="cupo" opciones={cuposDisp.filter(c=>String(c).includes(cupoTxt)).slice(0,50)}/>
+              <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="cupo" opciones={cuposDisp.filter(c=>String(c).includes(cupoTxt)).slice(0,50)}/>
             </div>
             {cuposDisp.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {cuposDisp.length-50} más</div>}
           </Seccion>
 
           {/* MÉDICO REFERENCIA — pendiente de tabla en Supabase */}
-          <Seccion k="medico" label="Médico Referencia PCRON">
+          <Seccion k="medico" expanded={expanded["medico"]} onToggle={toggle} label="Médico Referencia PCRON">
             {(()=>{
               const medicosDisp=[...new Set(pacientes.map(p=>p.medico).filter(Boolean))].sort();
               if(!medicosDisp.length) return <div style={{fontSize:10,color:"#94A3B8",padding:"4px"}}>Sin datos de médico disponibles</div>;
@@ -2325,7 +2330,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                   placeholder="Buscar médico…"
                   style={{width:"100%",padding:"5px 8px",border:"1px solid #E2E8F0",borderRadius:5,fontSize:10,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
                 <div style={{maxHeight:140,overflowY:"auto"}}>
-                  <CheckGroup campo="medico" opciones={filtered.slice(0,50)} labelFn={o=>o}/>
+                  <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="medico" opciones={filtered.slice(0,50)} labelFn={o=>o}/>
                 </div>
                 {filtered.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {filtered.length-50} más</div>}
               </>;
@@ -2333,7 +2338,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* BLOQUE CCEE */}
-          <Seccion k="bloque" label="Bloque CCEE Referencia">
+          <Seccion k="bloque" expanded={expanded["bloque"]} onToggle={toggle} label="Bloque CCEE Referencia">
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3}}>
               {(bloquesDisp.length>0?bloquesDisp:BLOQUES_PCRON).map(b=>{
                 const val=typeof b==="object"?b.value:b;
@@ -2356,7 +2361,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
 
 
           {/* GIP */}
-          <Seccion k="gip" label="Programas GIP">
+          <Seccion k="gip" expanded={expanded["gip"]} onToggle={toggle} label="Programas GIP">
             <div style={{display:"flex",flexDirection:"column",gap:5}}>
               {[["gip_ap","GIP AP","#0284C7"],["gip_hosp","GIP PCRON Hosp.","#7C3AED"],["gip_osarean","GIP OSAREAN","#059669"]].map(([campo,lbl,col])=>{
                 const onSi=filtros.some(f=>f.campo===campo&&f.valor===true);
@@ -2386,11 +2391,11 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* CENTRO GERONTOLÓGICO */}
-          <Seccion k="centro_ger" label="Centro Gerontológico">
+          <Seccion k="centro_ger" expanded={expanded["centro_ger"]} onToggle={toggle} label="Centro Gerontológico">
             {(()=>{
               const cgers=[...new Set(pacientes.map(p=>p.centro_ger).filter(Boolean))].sort();
               if(!cgers.length) return <div style={{fontSize:10,color:"#94A3B8",padding:"4px"}}>Sin datos</div>;
-              return <CheckGroup campo="centro_ger" opciones={cgers}/>;
+              return <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="centro_ger" opciones={cgers}/>;
             })()}
           </Seccion>
 
@@ -2403,7 +2408,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </div>
 
           {/* POBLACIÓN */}
-          <Seccion k="pob" label="Grupo de Población" defaultOpen>
+          <Seccion k="pob" expanded={expanded["pob"]} onToggle={toggle} label="Grupo de Población" defaultOpen>
             <div style={{display:"flex",flexDirection:"column",gap:3}}>
               {Object.entries(POB_DEF).map(([pob,c])=>{
                 const on=filtros.some(f=>f.campo==="pob"&&f.valor===pob);
@@ -2424,7 +2429,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* CARACTERÍSTICAS / PERFILES */}
-          <Seccion k="perfiles" label="Características / Perfiles" defaultOpen>
+          <Seccion k="perfiles" expanded={expanded["perfiles"]} onToggle={toggle} label="Características / Perfiles" defaultOpen>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3}}>
               {CARACTS_DEF.map(c=>{
                 const on=filtros.some(f=>f.campo===c.k&&f.valor===true);
@@ -2444,7 +2449,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* ÍNDICES */}
-          <Seccion k="indices" label="Índices de Complejidad">
+          <Seccion k="indices" expanded={expanded["indices"]} onToggle={toggle} label="Índices de Complejidad">
             {[
               ["compl","Complejidad", 20,OSI_STATS.top_media/5,OSI_STATS.top_p75/5],
               ["co",   "Comorbilidad",10,3,6],
@@ -2470,7 +2475,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* AUDITORÍA */}
-          <Seccion k="audit" label="Auditoría de Calidad">
+          <Seccion k="audit" expanded={expanded["audit"]} onToggle={toggle} label="Auditoría de Calidad">
             <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:5}}>Por color global</div>
             <div style={{display:"flex",gap:5,marginBottom:10}}>
               {[["VERDE","#059669","#D1FAE5"],["AMARILLO","#D97706","#FEF3C7"],["NARANJA","#EA580C","#FFF7ED"],["ROJO","#DC2626","#FEE2E2"]].map(([col,c,bg])=>{
@@ -2492,7 +2497,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </Seccion>
 
           {/* PENDIENTES ESPECÍFICOS */}
-          <Seccion k="pend" label="Elementos Pendientes (auditoría)">
+          <Seccion k="pend" expanded={expanded["pend"]} onToggle={toggle} label="Elementos Pendientes (auditoría)">
             {pendientesDisp.length===0
               ? <div style={{fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>No hay pendientes en la población cargada</div>
               : <div style={{maxHeight:160,overflowY:"auto"}}>
@@ -2524,7 +2529,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           {GRUPOS_CRITERIOS.map(g=>{
             const loaded=criteriosData&&criteriosData[g.id]&&Object.keys(criteriosData[g.id]).length>0;
             return (
-              <Seccion key={g.id} k={`crit_${g.id}`} label={g.label}
+              <Seccion key={g.id} k={`crit_${g.id}`} expanded={!!expanded[`crit_${g.id}`]} onToggle={toggle} label={g.label}
                 badge={loaded?"✓ Cargado":"⏳ Cargando…"}
                 badgeColor={loaded?"#059669":"#F59E0B"}>
                 {!loaded ? (
