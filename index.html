@@ -487,6 +487,10 @@ function applyFiltros(pacs, filtros) {
       }
       else if (f.tipo==="range")    match = (p[f.campo]||0)>=f.min && (p[f.campo]||0)<=f.max;
       else if (f.tipo==="texto")    match = String(p[f.campo]||"").toLowerCase().includes(f.valor.toLowerCase());
+      else if (f.tipo==="texto_multi") {
+        const v=f.valor.toLowerCase();
+        match=["id","cic","cupo","centro","medico"].some(c=>String(p[c]||"").toLowerCase().includes(v));
+      }
       else if (f.tipo==="lista")    match = Array.isArray(f.valor) && f.valor.includes(String(p[f.campo]||""));
       else if (f.tipo==="bool_pend") match = f.valor ? (p.audit_pend||[]).length>0 : (p.audit_pend||[]).length===0;
       else if (f.tipo==="pend_item") match = (p.audit_pend||[]).includes(f.valor);
@@ -2156,15 +2160,21 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
         <div style={{fontSize:10,fontWeight:700,color:"#64748B",marginBottom:6}}>🔍 BÚSQUEDA RÁPIDA — ID · CIC · Cupo · Centro</div>
         <div style={{position:"relative"}}>
           <div style={{display:"flex",gap:4}}>
-            <input value={busqTexto} onChange={e=>setBusqTexto(e.target.value)}
-              placeholder="ID, CIC, cupo o centro…"
+            <input value={busqTexto}
+              onChange={e=>setBusqTexto(e.target.value)}
+              onKeyDown={e=>{
+                if(e.key!=="Enter") return;
+                const v=busqTexto.trim();
+                if(v.length<2) return;
+                add({campo:"_texto",label:`Texto: "${v}"`,tipo:"texto_multi",valor:v});
+                setBusqTexto("");
+              }}
+              placeholder="ID, CIC, cupo o centro… (Enter o botón)"
               style={{flex:1,padding:"6px 10px",border:"1px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"inherit"}}/>
             <button onClick={()=>{
                 const v=busqTexto.trim();
                 if(v.length<2) return;
-                const campos=["id","cic","cupo","centro"];
-                const campo=campos.find(c=>pacientes.some(p=>String(p[c]||"").toLowerCase().includes(v.toLowerCase())))||"id";
-                add({campo,label:`Texto: "${v}"`,tipo:"texto",valor:v});
+                add({campo:"_texto",label:`Texto: "${v}"`,tipo:"texto_multi",valor:v});
                 setBusqTexto("");
               }}
               style={{padding:"6px 12px",background:"#1D4ED8",border:"none",borderRadius:6,color:"white",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
