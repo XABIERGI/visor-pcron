@@ -2603,22 +2603,20 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                     <div style={{fontSize:9,color:"#94A3B8",marginTop:4}}>Solo se cargan al pulsar</div>
                   </div>
                 ) : (
-                  (g.items||[]).map(({k,l:rawLabel,tipo=undefined})=>{ const itemLabel=rawLabel||k||'?';
-                    const activoBool = filtros.some(f=>f.campo===k&&f.tipo==="crit_bool");
-                    const activoVal  = filtros.find(f=>f.campo===k&&f.tipo==="crit_val");
-                    const activo = activoBool || !!activoVal;
+                  (g.items||[]).map(({k,l:rawLabel,tipo})=>{ const lbl=rawLabel||k;
+                    const activo = filtros.some(f=>f.campo===k&&f.tipo==="crit_bool");
                     return (
-                      <div key={k} style={{marginBottom:3,padding:"2px 5px",borderRadius:4,
+                      <div key={k} style={{marginBottom:2,padding:"3px 6px",borderRadius:4,
                         background:activo?"#EFF6FF":"transparent",
                         border:activo?"1px solid #BFDBFE":"1px solid transparent"}}>
-                        <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
-                          <input type="checkbox" checked={activoBool}
+                        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",width:"100%"}}>
+                          <input type="checkbox" checked={activo}
                             onChange={e=>{
-                              if(e.target.checked) add({campo:k,label:itemLabel+" = Sí",tipo:"crit_bool",valor:true});
+                              if(e.target.checked) add({campo:k,label:lbl,tipo:"crit_bool",valor:true});
                               else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_bool")));
-                            }} style={{cursor:"pointer",accentColor:"#3B82F6",flexShrink:0}}/>
-                          <span style={{fontSize:10,color:activo?"#1D4ED8":"#475569",fontWeight:activo?700:400}}>{itemLabel}</span>
-                          {tipo&&<span style={{fontSize:8,color:"#94A3B8",marginLeft:"auto"}}>{tipo==="num"?"#":"T"}</span>}
+                            }} style={{cursor:"pointer",accentColor:"#3B82F6",flexShrink:0,width:14,height:14}}/>
+                          <span style={{fontSize:10,color:activo?"#1D4ED8":"#374151",fontWeight:activo?700:400,flex:1}}>{lbl}</span>
+                          {tipo&&<span style={{fontSize:8,color:"#94A3B8"}}>{tipo==="num"?"#":"T"}</span>}
                         </label>
                         {activoVal&&<div style={{fontSize:9,color:"#3B82F6",paddingLeft:20}}>= {activoVal.valor}</div>}
                       </div>
