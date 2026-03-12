@@ -1161,8 +1161,8 @@ function ChangePasswordForm({onSave, loading, error}) {
 
 function PantallaCarga({progreso, totalBD, error, onRetry}) {
   const base = totalBD || META.totalBD;
-  const total = base.toLocaleString();
-  const cargados = Math.round(progreso / 100 * base).toLocaleString();
+  const total = base.toLocaleString('es-ES');
+  const cargados = totalBD ? Math.round(progreso / 100 * base).toLocaleString('es-ES') : "…";
   const fase = progreso < 5  ? "Conectando con Supabase…"
              : progreso < 30 ? "Descargando registros de pacientes…"
              : progreso < 70 ? "Procesando datos clínicos…"
@@ -4026,7 +4026,7 @@ function App() {
   // ── APP ───────────────────────────────────────────────────────────────────
   const [loading,setLoading]=useState(true);
   const [progreso,setProgreso]=useState(0);
-  const [totalBD,setTotalBD]=useState(META.totalBD);
+  const [totalBD,setTotalBD]=useState(null);
   const [error,setError]=useState(null);
   const [pacientes,setPacientes]=useState([]);
   const [criteriosPct,setCriteriosPct]=useState(null); // null=no iniciado, 0-99=cargando, 100=listo
