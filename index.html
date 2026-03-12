@@ -509,7 +509,7 @@ function applyFiltros(pacs, filtros) {
 // ════════════════════════════════════════════════════════════════════════════
 // ❹  CARGA DE DATOS DESDE SUPABASE
 // ════════════════════════════════════════════════════════════════════════════
-async function cargarTodosPacientes(onProgress) {
+async function cargarTodosPacientes(onProgress, onTotal) {
   const sb = await getSupabase();
   if (!sb) return [];
   const batchSize = 1000;
@@ -789,19 +789,32 @@ function getAuditDef(pat) {
 // Normaliza valores de pob de Supabase → claves de POB_DEF
 // Valores reales confirmados por SQL en PACIENTES_VISTA
 const POB_MAP = {
+  // Sin tilde (como viene del JSONB)
   "08 DEMOGRAFICOS":             "08 DEMOGRÁFICOS",
   "06 MAYOR COMORBILIDAD":       "06 MAYOR COMORBILIDAD",
   "03 DEPENDIENTE EN DOMICILIO": "03 DEPENDIENTE DOMICILIO",
+  "03 DEPENDIENTE DOMICILIO":    "03 DEPENDIENTE DOMICILIO",
   "07 MAYOR SANO":               "07 MAYOR SANO",
   "01 GERONTOLOGICO":            "01 GERONTOLÓGICO",
   "05 HF AP":                    "05 HF AP",
   "02 PALIATIVO":                "02 PALIATIVO",
   "04 HF HOSPITALARIO":          "04 HF HOSPITALARIO",
+  // Con tilde (por si el JSONB ya los tiene bien)
+  "08 DEMOGRÁFICOS":             "08 DEMOGRÁFICOS",
+  "01 GERONTOLÓGICO":            "01 GERONTOLÓGICO",
+  "03 DEPENDIENTE DOMICILIO":    "03 DEPENDIENTE DOMICILIO",
 };
 function normalizarPob(v) {
   if (!v) return '';
   const s = String(v).trim().toUpperCase();
-  return POB_MAP[s] || v;
+  if (POB_MAP[s]) return POB_MAP[s];
+  // Buscar coincidencia parcial por número de grupo (01,02,...08)
+  const num = s.match(/^0[1-8]/);
+  if (num) {
+    const found = Object.values(POB_DEF).length && Object.keys(POB_DEF).find(k=>k.startsWith(num[0]));
+    if (found) return found;
+  }
+  return v;
 }
 
 let _debugLogged = false;
@@ -941,7 +954,7 @@ function mapearPaciente(r) {
     gip_osarean: esSi(getC(crit,'04-15-09-01')),
 
     // ── GRUPO DE POBLACIÓN ──
-    pob: crit['05-17-00-02 CLAS POBLACION APP_POBLACION DIANA grupos'] || '',
+    pob: normalizarPob(crit['05-17-00-02 CLAS POBLACION APP_POBLACION DIANA grupos'] || ''),
 
     // ── CARACTERÍSTICAS / PERFILES ──
     geron:   esSi(crit['CARACT_GERONTOLOGICO']),
@@ -1146,9 +1159,10 @@ function ChangePasswordForm({onSave, loading, error}) {
   );
 }
 
-function PantallaCarga({progreso, error, onRetry}) {
-  const total = META.totalBD.toLocaleString();
-  const cargados = Math.round(progreso / 100 * META.totalBD).toLocaleString();
+function PantallaCarga({progreso, totalBD, error, onRetry}) {
+  const base = totalBD || META.totalBD;
+  const total = base.toLocaleString();
+  const cargados = Math.round(progreso / 100 * base).toLocaleString();
   const fase = progreso < 5  ? "Conectando con Supabase…"
              : progreso < 30 ? "Descargando registros de pacientes…"
              : progreso < 70 ? "Procesando datos clínicos…"
@@ -1777,7 +1791,7 @@ function TabEstadisticas({pacientes}) {
         <ST icon="🏷️" title="Características / Perfiles"/>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:6}}>
           {CARACTS_DEF.map(c=>{
-            const n=pacientes.filter(p=>p[c.k]).length;
+            const n=caractCounts[c.k]||0;
             return (
               <div key={c.k} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:c.c+"08",border:`1px solid ${c.c}25`,borderRadius:8}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:c.c}}/>
@@ -2081,7 +2095,12 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
   const [expanded,setExpanded]     = useState({osi:true,centro:true,pob:true,perfiles:true});
 
   const toggle = k => setExpanded(e=>({...e,[k]:!e[k]}));
-  const nFiltrado = useMemo(()=>applyFiltros(pacientes,filtros).length,[pacientes,filtros]);
+  const nFiltrado   = useMemo(()=>applyFiltros(pacientes,filtros).length,[pacientes,filtros]);
+  const caractCounts = useMemo(()=>{
+    const m={};
+    CARACTS_DEF.forEach(c=>{ m[c.k]=pacientes.filter(p=>p[c.k]).length; });
+    return m;
+  },[pacientes]);
   const pobCounts = useMemo(()=>{const m={};pacientes.forEach(p=>{if(p.pob)m[p.pob]=(m[p.pob]||0)+1;});return m;},[pacientes]);
   const gipCounts = useMemo(()=>({
     gip_ap:      pacientes.filter(p=>!!p.gip_ap).length,
@@ -2567,7 +2586,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
           </div>
 
           {GRUPOS_CRITERIOS.map(g=>{
-            const loaded=criteriosData&&criteriosData[g.id]&&Object.keys(criteriosData[g.id]).length>0;
+            const loaded=loadedGrupos.includes(g.id);
             return (
               <Seccion key={g.id} k={`crit_${g.id}`} expanded={!!expanded[`crit_${g.id}`]} onToggle={toggle} label={g.label}
                 badge={loaded?"✓ Cargado":"⏳ Cargando…"}
@@ -4007,6 +4026,7 @@ function App() {
   // ── APP ───────────────────────────────────────────────────────────────────
   const [loading,setLoading]=useState(true);
   const [progreso,setProgreso]=useState(0);
+  const [totalBD,setTotalBD]=useState(META.totalBD);
   const [error,setError]=useState(null);
   const [pacientes,setPacientes]=useState([]);
   const [criteriosPct,setCriteriosPct]=useState(null); // null=no iniciado, 0-99=cargando, 100=listo
@@ -4154,7 +4174,7 @@ function App() {
   const cargarDatos=async()=>{
     setLoading(true); setProgreso(0);
     try {
-      const data=await cargarTodosPacientes(setProgreso);
+      const data=await cargarTodosPacientes(setProgreso, n=>setTotalBD(n));
       const pacs=data.length===0?DEMO_PACIENTES:data;
       setPacientes(pacs);
       setProgreso(100);
@@ -4188,10 +4208,10 @@ function App() {
         map[p.id] = p._criterios;
       }
     });
-    if(Object.keys(map).length>0) {
-      setCriteriosData(prev=>({...prev,[grupoId]:map}));
-    }
+    // Marcar cargado aunque esté vacío (para no mostrar botón indefinidamente)
+    setCriteriosData(prev=>({...prev,[grupoId]: Object.keys(map).length>0 ? map : {_loaded:true}}));
     setLoadedGrupos(prev=>[...prev,grupoId]);
+    console.log("Criterios cargados para", grupoId, ":", Object.keys(map).length, "pacientes");
   },[loadedGrupos, pacientes]);
 
   const canCIC=ROLES_DEF[role]?.cic||false;
@@ -4241,7 +4261,7 @@ function App() {
     </div>
   );
 
-  if(loading) return <PantallaCarga progreso={progreso} error={error} onRetry={()=>window.location.reload()}/>;
+  if(loading) return <PantallaCarga progreso={progreso} totalBD={totalBD} error={error} onRetry={()=>window.location.reload()}/>;
 
   // Perfil CONSULTA — pantalla exclusiva de búsqueda por CIC
   const rolDef = ROLES_DEF[authUser?.rol||"PROFESIONAL"]||{};
