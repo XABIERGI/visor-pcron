@@ -521,7 +521,17 @@ async function cargarTodosPacientes(onProgress) {
       .range(offset, offset + batchSize - 1);
     if (error) { console.error("Error carga:", error); break; }
     if (!data || data.length === 0) break;
-    if (offset === 0) console.log("TOTAL en BD:", count);
+    if (offset === 0) {
+      console.log("TOTAL en BD:", count);
+      if (data[0]?.criterios) {
+        const crit = data[0].criterios;
+        const keys = Object.keys(crit);
+        const gipKeys = keys.filter(k=>k.includes('GIP')||k.includes('gip')||k.startsWith('04-12')||k.startsWith('04-13'));
+        console.log("🔍 KEYS GIP en criterios:", gipKeys.slice(0,20));
+        console.log("🔍 POB key:", keys.find(k=>k.includes('POBLACION')));
+        console.log("🔍 Total keys criterios:", keys.length);
+      }
+    }
     all = [...all, ...data.map(r => mapearPaciente(r))];
     offset += data.length;
     const total = count || META.totalBD;
@@ -1137,29 +1147,57 @@ function ChangePasswordForm({onSave, loading, error}) {
 }
 
 function PantallaCarga({progreso, error, onRetry}) {
+  const total = META.totalBD.toLocaleString();
+  const cargados = Math.round(progreso / 100 * META.totalBD).toLocaleString();
+  const fase = progreso < 5  ? "Conectando con Supabase…"
+             : progreso < 30 ? "Descargando registros de pacientes…"
+             : progreso < 70 ? "Procesando datos clínicos…"
+             : progreso < 95 ? "Calculando indicadores…"
+             :                  "Preparando el visor…";
+  const tip = progreso < 50
+    ? "💡 Se están cargando "+total+" pacientes crónicos de Osakidetza"
+    : "💡 Casi listo — gracias por tu paciencia";
+
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060E1E,#0F2444)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',system-ui,sans-serif"}}>
-      <div style={{textAlign:"center",padding:32}}>
-        <div style={{fontSize:48,marginBottom:16}}>🏥</div>
-        <div style={{color:"white",fontSize:24,fontWeight:800,letterSpacing:1,marginBottom:4}}>VISOR PCRON</div>
-        <div style={{color:"#64748B",fontSize:13,marginBottom:32}}>Osakidetza · {META.version} · Actualizado: {META.fechaAct}</div>
+      <div style={{textAlign:"center",padding:32,maxWidth:420}}>
+        <div style={{fontSize:56,marginBottom:12}}>🏥</div>
+        <div style={{color:"white",fontSize:26,fontWeight:800,letterSpacing:1,marginBottom:4}}>VISOR PCRON</div>
+        <div style={{color:"#475569",fontSize:12,marginBottom:36}}>Osakidetza · {META.version} · Actualizado: {META.fechaAct}</div>
+
         {error ? (
           <div>
             <div style={{color:"#FCA5A5",fontSize:14,marginBottom:12}}>❌ {error}</div>
             <button onClick={onRetry} style={{padding:"10px 24px",background:"#DC2626",border:"none",borderRadius:8,color:"white",fontSize:13,fontWeight:700,cursor:"pointer"}}>Reintentar</button>
-            <div style={{color:"#475569",fontSize:11,marginTop:12}}>Comprueba SUPABASE_URL y SUPABASE_ANON en la configuración</div>
+            <div style={{color:"#475569",fontSize:11,marginTop:12}}>Comprueba la conexión con Supabase</div>
           </div>
         ) : (
-          <div style={{width:320}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-              <span style={{color:"#93C5FD",fontSize:12}}>Cargando pacientes…</span>
-              <span style={{color:"#3B82F6",fontWeight:700,fontSize:12}}>{progreso}%</span>
+          <div style={{width:360}}>
+            {/* Barra progreso */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+              <span style={{color:"#93C5FD",fontSize:13,fontWeight:600}}>{fase}</span>
+              <span style={{color:"#3B82F6",fontWeight:800,fontSize:14}}>{progreso}%</span>
             </div>
-            <div style={{height:8,background:"rgba(255,255,255,0.1)",borderRadius:4,overflow:"hidden"}}>
-              <div style={{height:"100%",width:progreso+"%",background:"linear-gradient(90deg,#3B82F6,#06B6D4)",borderRadius:4,transition:"width .3s"}}/>
+            <div style={{height:10,background:"rgba(255,255,255,0.08)",borderRadius:6,overflow:"hidden",marginBottom:12}}>
+              <div style={{height:"100%",width:progreso+"%",background:"linear-gradient(90deg,#3B82F6,#06B6D4)",borderRadius:6,transition:"width .4s ease"}}/>
             </div>
-            <div style={{color:"#475569",fontSize:11,marginTop:8}}>
-              {progreso<20?"Conectando con Supabase…":progreso<60?"Descargando datos básicos…":progreso<90?"Procesando registros…":"Preparando vista…"}
+
+            {/* Contador */}
+            <div style={{display:"flex",justifyContent:"center",gap:24,marginBottom:20}}>
+              <div style={{textAlign:"center"}}>
+                <div style={{color:"white",fontSize:22,fontWeight:800}}>{cargados}</div>
+                <div style={{color:"#475569",fontSize:10,marginTop:2}}>pacientes cargados</div>
+              </div>
+              <div style={{width:1,background:"rgba(255,255,255,0.1)"}}/>
+              <div style={{textAlign:"center"}}>
+                <div style={{color:"#64748B",fontSize:22,fontWeight:800}}>{total}</div>
+                <div style={{color:"#475569",fontSize:10,marginTop:2}}>total en base de datos</div>
+              </div>
+            </div>
+
+            {/* Tip */}
+            <div style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8,padding:"10px 14px",fontSize:11,color:"#93C5FD",lineHeight:1.5}}>
+              {tip}
             </div>
           </div>
         )}
@@ -1906,19 +1944,7 @@ function TabDetalle({pacientes,setPacientes,canCIC,criteriosData,loadedGrupos,on
             </thead>
             <tbody>
               {rows.map((p,i)=>(
-                <tr key={p.id} onClick={async()=>{
-                  if(!p._criterios || Object.keys(p._criterios).length===0) {
-                    const sb=await getSupabase();
-                    if(sb){
-                      const {data}=await sb.from("PACIENTES").select("criterios").eq("id_paciente",p.id).single();
-                      if(data?.criterios) {
-                        const patConCrit = {...p, _criterios: data.criterios};
-                        setPat(patConCrit); return;
-                      }
-                    }
-                  }
-                  setPat(p);
-                }} style={{borderBottom:"1px solid #F1F5F9",background:i%2===0?"white":"#FAFBFC",cursor:"pointer"}}
+                <tr key={p.id} onClick={()=>setPat(p)} style={{borderBottom:"1px solid #F1F5F9",background:i%2===0?"white":"#FAFBFC",cursor:"pointer"}}
                   onMouseEnter={e=>e.currentTarget.style.background="#EFF6FF"}
                   onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"white":"#FAFBFC"}>
                   {cols.map(c=>{
@@ -2051,6 +2077,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
   const [centroTxt,setCentroTxt]   = useState("");
   const [medicoTxt,setMedicoTxt]   = useState("");
   const [cupoTxt,setCupoTxt]       = useState("");
+  const [centroGerTxt,setCentroGerTxt] = useState("");
   const [expanded,setExpanded]     = useState({osi:true,centro:true,pob:true,perfiles:true});
 
   const toggle = k => setExpanded(e=>({...e,[k]:!e[k]}));
@@ -2401,7 +2428,14 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             {(()=>{
               const cgers=[...new Set(pacientes.map(p=>p.centro_ger).filter(Boolean))].sort();
               if(!cgers.length) return <div style={{fontSize:10,color:"#94A3B8",padding:"4px"}}>Sin datos</div>;
-              return <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="centro_ger" opciones={cgers}/>;
+              const filtered = centroGerTxt ? cgers.filter(c=>c.toLowerCase().includes(centroGerTxt.toLowerCase())) : cgers;
+              return <>
+                <SearchBox placeholder="Buscar gerontológico…" onSearch={v=>setCentroGerTxt(v)}/>
+                <div style={{maxHeight:140,overflowY:"auto"}}>
+                  <CheckGroup filtros={filtros} add={add} setFiltros={setFiltros} campo="centro_ger" opciones={filtered.slice(0,50)}/>
+                </div>
+                {filtered.length>50&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>…y {filtered.length-50} más</div>}
+              </>;
             })()}
           </Seccion>
 
@@ -4143,23 +4177,22 @@ function App() {
   },[authState]);
 
   // ── CARGA LAZY CRITERIOS ─────────────────────────────────────────────────
-  const handleLoadGrupo=useCallback(async(grupoId, ids)=>{
+  const handleLoadGrupo=useCallback((grupoId, ids)=>{
     if(loadedGrupos.includes(grupoId)) return;
-    const grupo=GRUPOS_CRITERIOS.find(g=>g.id===grupoId);
-    if(!grupo) return;
-    try {
-      const map=await cargarCriteriosGrupo(grupo, ids);
-      if(Object.keys(map).length>0) {
-        setCriteriosData(prev=>{
-          const next={...prev,[grupoId]:map};
-          return next;
-        });
+    // Los criterios ya están en _criterios de cada paciente (carga inicial)
+    // Construir el mapa directamente sin llamar a Supabase
+    const idSet = new Set(ids);
+    const map = {};
+    pacientes.forEach(p=>{
+      if(idSet.has(p.id) && p._criterios && Object.keys(p._criterios).length>0) {
+        map[p.id] = p._criterios;
       }
-      setLoadedGrupos(prev=>[...prev,grupoId]);
-    } catch(e) {
-      console.error("Error cargando criterios:",e);
+    });
+    if(Object.keys(map).length>0) {
+      setCriteriosData(prev=>({...prev,[grupoId]:map}));
     }
-  },[loadedGrupos]);
+    setLoadedGrupos(prev=>[...prev,grupoId]);
+  },[loadedGrupos, pacientes]);
 
   const canCIC=ROLES_DEF[role]?.cic||false;
 
