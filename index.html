@@ -528,8 +528,8 @@ function applyFiltros(pacs, filtros) {
 // ════════════════════════════════════════════════════════════════════════════
 // ❹  CARGA DE DATOS DESDE SUPABASE
 // ════════════════════════════════════════════════════════════════════════════
-async function cargarTodosPacientes(onProgress, onTotal) {
-  const sb = await getSupabase();
+async function cargarTodosPacientes(onProgress, onTotal, sbClient) {
+  const sb = sbClient || await getSupabase();
   if (!sb) return [];
   const batchSize = 1000;
   let all = [], offset = 0;
@@ -538,7 +538,7 @@ async function cargarTodosPacientes(onProgress, onTotal) {
       .from("PACIENTES_VISTA")
       .select("*", {count:"exact"})
       .range(offset, offset + batchSize - 1);
-    if (error) { console.error("Error carga:", error); break; }
+    if (error) { console.error("❌ Error PACIENTES_VISTA:", JSON.stringify(error)); break; }
     if (!data || data.length === 0) break;
     if (offset === 0) { console.log("TOTAL en BD:", count); if(onTotal) onTotal(count); }
     all = [...all, ...data.map(r => mapearPacienteVista(r))];
@@ -4188,8 +4188,7 @@ function App() {
       if(data.primer_login){
         setAuthState("change_password");
       } else {
-        setAuthState("app");
-        cargarDatos();
+        setAuthState("app"); // useEffect se encarga de llamar cargarDatos
       }
     } catch(e){ setAuthState("login"); }
   };
@@ -4230,7 +4229,8 @@ function App() {
   const cargarDatos=async()=>{
     setLoading(true); setProgreso(0);
     try {
-      const data=await cargarTodosPacientes(setProgreso, n=>setTotalBD(n));
+      const sbAuth = await getSupabase();
+      const data=await cargarTodosPacientes(setProgreso, n=>setTotalBD(n), sbAuth);
       const seen=new Set();
       const pacs=data.length===0 ? DEMO_PACIENTES : data.filter(p=>{ if(seen.has(p.id)) return false; seen.add(p.id); return true; });
       setPacientes(pacs);
