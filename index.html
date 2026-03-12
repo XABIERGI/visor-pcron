@@ -533,31 +533,30 @@ async function cargarTodosPacientes(onProgress, onTotal, sbClient) {
   if (!sb) return [];
   const batchSize = 1000;
   const all = [];
-  let offset = 0, total = META.totalBD, errores = 0;
+  let offset = 0, total = null, errores = 0;
   while (true) {
     const {data, error, count} = await sb
       .from("PACIENTES_VISTA")
       .select("*", {count:"exact"})
-      .order("id_paciente", {ascending:true})
       .range(offset, offset + batchSize - 1);
     if (error) {
       console.error("❌ Error PACIENTES_VISTA:", JSON.stringify(error));
       errores++;
-      if (errores > 3) break; // máx 3 errores consecutivos
+      if (errores > 3) break;
       await new Promise(r=>setTimeout(r,1000));
       continue;
     }
     errores = 0;
-    if (!data || data.length === 0) break;
-    if (offset === 0) {
-      total = count || META.totalBD;
+    if (!data || data.length === 0) break; // Supabase dice que no hay más
+    if (total === null) {
+      total = count;
       console.log("TOTAL en BD:", count);
       if(onTotal) onTotal(count);
     }
-    for (const r of data) all.push(mapearPacienteVista(r)); // push evita O(n²)
+    for (const r of data) all.push(mapearPacienteVista(r));
     offset += data.length;
-    onProgress(Math.min(98, Math.round(offset / total * 100)));
-    if (offset >= total) break; // parar cuando hayamos cargado todo
+    onProgress(Math.min(98, Math.round(offset / (total||META.totalBD) * 100)));
+    if (data.length < batchSize) break; // último batch — no hay más
   }
   console.log("✅ Pacientes cargados:", all.length, "de", total);
   return all;
