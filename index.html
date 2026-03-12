@@ -128,7 +128,7 @@ async function getSupabase() {
 const META = {
   version:"v7.1", totalBD:97525,
   fuente:"Osabide Global · Osanaia · OAS",
-  fechaAct:"03/03/2026 08:14",
+  fechaAct:"12/03/2026",
 };
 
 const POB_DEF = {
@@ -532,21 +532,34 @@ async function cargarTodosPacientes(onProgress, onTotal, sbClient) {
   const sb = sbClient || await getSupabase();
   if (!sb) return [];
   const batchSize = 1000;
-  let all = [], offset = 0;
+  const all = [];
+  let offset = 0, total = META.totalBD, errores = 0;
   while (true) {
     const {data, error, count} = await sb
       .from("PACIENTES_VISTA")
       .select("*", {count:"exact"})
+      .order("id_paciente", {ascending:true})
       .range(offset, offset + batchSize - 1);
-    if (error) { console.error("❌ Error PACIENTES_VISTA:", JSON.stringify(error)); break; }
+    if (error) {
+      console.error("❌ Error PACIENTES_VISTA:", JSON.stringify(error));
+      errores++;
+      if (errores > 3) break; // máx 3 errores consecutivos
+      await new Promise(r=>setTimeout(r,1000));
+      continue;
+    }
+    errores = 0;
     if (!data || data.length === 0) break;
-    if (offset === 0) { console.log("TOTAL en BD:", count); if(onTotal) onTotal(count); }
-    all = [...all, ...data.map(r => mapearPacienteVista(r))];
+    if (offset === 0) {
+      total = count || META.totalBD;
+      console.log("TOTAL en BD:", count);
+      if(onTotal) onTotal(count);
+    }
+    for (const r of data) all.push(mapearPacienteVista(r)); // push evita O(n²)
     offset += data.length;
-    const total = count || META.totalBD;
     onProgress(Math.min(98, Math.round(offset / total * 100)));
-    if (data.length < batchSize) break;
+    if (offset >= total) break; // parar cuando hayamos cargado todo
   }
+  console.log("✅ Pacientes cargados:", all.length, "de", total);
   return all;
 }
 
@@ -4231,9 +4244,7 @@ function App() {
     try {
       const sbAuth = await getSupabase();
       const data=await cargarTodosPacientes(setProgreso, n=>setTotalBD(n), sbAuth);
-      const seen=new Set();
-      const pacs=data.length===0 ? DEMO_PACIENTES : data.filter(p=>{ if(seen.has(p.id)) return false; seen.add(p.id); return true; });
-      setPacientes(pacs);
+      setPacientes(data.length===0 ? DEMO_PACIENTES : data);
       setProgreso(100);
       setTimeout(()=>setLoading(false),400);
     } catch(e){
