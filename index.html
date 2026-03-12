@@ -34,12 +34,23 @@ input,button,select,textarea{font-family:inherit;}
 const _fill=document.getElementById('boot-fill');
 const _msg=document.getElementById('boot-msg');
 function setBar(p,t){_fill.style.width=p+'%';if(t)_msg.textContent=t;}
-function loadScript(src,cb){
+function loadScript(src,cb,label){
   const s=document.createElement('script');
-  s.src=src; s.onload=cb;
-  s.onerror=()=>{_msg.style.color='#FCA5A5';_msg.textContent='Error cargando libreria';};
+  s.src=src;
+  s.onload=cb;
+  s.onerror=()=>{
+    _msg.style.color='#FCA5A5';
+    _msg.textContent='❌ Error cargando '+(label||src.split('/').pop())+' — comprueba conexión a internet';
+    console.error('Error cargando script:', src);
+  };
   document.head.appendChild(s);
 }
+setTimeout(()=>{
+  if(document.getElementById('boot').style.display!=='none'){
+    _msg.style.color='#FCA5A5';
+    _msg.textContent='⏱ Tiempo agotado — recarga la página (F5)';
+  }
+},30000);
 setBar(5,'Cargando React…');
 loadScript('https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',()=>{
   setBar(22,'Cargando ReactDOM…');
@@ -101,14 +112,14 @@ async function ensureSupabaseCDN() {
 
 async function getSupabase() {
   if (_supabaseClient) return _supabaseClient;
-  const ok = await ensureSupabaseCDN();
-  if (ok && window.supabase && window.supabase.createClient) {
+  await ensureSupabaseCDN();
+  if (window.supabase && window.supabase.createClient) {
     _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
       db: { schema: "public" },
-      auth: { persistSession: false },
+      auth: { persistSession: true, storageKey: "visor_pcron_auth" },
     });
   }
-  return _supabaseClient;
+  return _supabaseClient || null;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -524,23 +535,13 @@ async function cargarTodosPacientes(onProgress, onTotal) {
   let all = [], offset = 0;
   while (true) {
     const {data, error, count} = await sb
-      .from("PACIENTES")
-      .select("id_paciente,cic,edad,sexo,comarca_osi,centro,codigo_cupo,criterios", {count:"exact"})
+      .from("PACIENTES_VISTA")
+      .select("*", {count:"exact"})
       .range(offset, offset + batchSize - 1);
     if (error) { console.error("Error carga:", error); break; }
     if (!data || data.length === 0) break;
-    if (offset === 0) {
-      console.log("TOTAL en BD:", count);
-      if (data[0]?.criterios) {
-        const crit = data[0].criterios;
-        const keys = Object.keys(crit);
-        const gipKeys = keys.filter(k=>k.includes('GIP')||k.includes('gip')||k.startsWith('04-12')||k.startsWith('04-13'));
-        console.log("🔍 KEYS GIP en criterios:", gipKeys.slice(0,20));
-        console.log("🔍 POB key:", keys.find(k=>k.includes('POBLACION')));
-        console.log("🔍 Total keys criterios:", keys.length);
-      }
-    }
-    all = [...all, ...data.map(r => mapearPaciente(r))];
+    if (offset === 0) { console.log("TOTAL en BD:", count); if(onTotal) onTotal(count); }
+    all = [...all, ...data.map(r => mapearPacienteVista(r))];
     offset += data.length;
     const total = count || META.totalBD;
     onProgress(Math.min(98, Math.round(offset / total * 100)));
@@ -4157,6 +4158,11 @@ function App() {
         }
       });
       unsub=subscription;
+      // Fallback: si ya hay sesión activa, onAuthStateChange puede no disparar SIGNED_IN
+      const {data:{session}} = await sb.auth.getSession();
+      if(session && authState==="checking") {
+        await loadUserProfile(session.user, sb);
+      }
     };
     setup();
     return ()=>unsub?.unsubscribe?.();
