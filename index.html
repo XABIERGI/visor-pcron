@@ -2613,11 +2613,11 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
             const loaded=loadedGrupos.includes(g.id);
             return (
               <Seccion key={g.id} k={`crit_${g.id}`} expanded={!!expanded[`crit_${g.id}`]} onToggle={toggle} label={g.label}
-                badge={loaded?"✓ Cargado":"⏳ Cargando…"}
-                badgeColor={loaded?"#059669":"#F59E0B"}>
+                badge={loaded?"✓ Cargado":"📦 Sin cargar"}
+                badgeColor={loaded?"#059669":"#94A3B8"}>
                 {!loaded ? (
                   <div style={{textAlign:"center",padding:"8px 0"}}>
-                    <button onClick={()=>onLoadGrupo(g.id, pacientes.map(p=>p.id))}
+                    <button onClick={()=>{ onLoadGrupo(g.id, pacientes.map(p=>p.id)); toggle(`crit_${g.id}`); }}
                       style={{padding:"6px 14px",background:"#1D4ED8",color:"white",border:"none",
                         borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer"}}>
                       📦 Cargar criterios
@@ -2686,48 +2686,6 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                           </div>;
                         })()}
                         {activoVal&&<div style={{fontSize:9,color:"#3B82F6",paddingLeft:20}}>= {activoVal.valor}</div>}
-                      </div>
-                    );
-                  }).map(({k,l})=>{
-                    // Detectar si es campo numérico/año por el label
-                    const esNumerico = /año|n|num|frec|dias|meses|veces|valor|edad|score|indice|índice/i.test(l);
-                    // Obtener valores únicos del campo para este criterio
-                    const valoresUnicos = esNumerico ? [...new Set(
-                      pacientes.map(p=>{
-                        const v = p._criterios && (p._criterios[k] || Object.entries(p._criterios||{}).find(([ck])=>ck.startsWith(k))?.[1]);
-                        return v && v!=='No' && v!=='NO' && v!='' ? v : null;
-                      }).filter(Boolean)
-                    )].sort((a,b)=>isNaN(a)?a.localeCompare(b):Number(a)-Number(b)).slice(0,20) : [];
-
-                    const activosBool = filtros.some(f=>f.campo===k&&f.valor===true);
-                    const activoVal = filtros.find(f=>f.campo===k&&f.tipo==="crit_val");
-
-                    return (
-                      <div key={k} style={{marginBottom:4,padding:"3px 5px",borderRadius:4,
-                        background:activosBool||activoVal?"#EFF6FF":"transparent",
-                        border:(activosBool||activoVal)?"1px solid #BFDBFE":"1px solid transparent"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <input type="checkbox" checked={activosBool}
-                            onChange={e=>{
-                              if(e.target.checked) add({campo:k,label:label+" = Sí",tipo:"crit_bool",valor:true});
-                              else setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_bool")));
-                            }} style={{cursor:"pointer",accentColor:"#3B82F6"}}/>
-                          <span style={{fontSize:10,color:(activosBool||activoVal)?"#1D4ED8":"#475569",fontWeight:(activosBool||activoVal)?700:400,flex:1}}>{l}</span>
-                        </div>
-                        {esNumerico && valoresUnicos.length>0 && (
-                          <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:3,paddingLeft:18}}>
-                            {valoresUnicos.map(v=>{
-                              const activo=activoVal&&activoVal.valor===v;
-                              return <button key={v} onClick={()=>activo
-                                  ? setFiltros(p=>p.filter(f=>!(f.campo===k&&f.tipo==="crit_val")))
-                                  : add({campo:k,label:`${l} = ${v}`,tipo:"crit_val",valor:v})}
-                                style={{padding:"1px 6px",fontSize:9,border:`1px solid ${activo?"#3B82F6":"#E2E8F0"}`,
-                                  borderRadius:3,background:activo?"#3B82F6":"white",color:activo?"white":"#475569",cursor:"pointer"}}>
-                                {v}
-                              </button>;
-                            })}
-                          </div>
-                        )}
                       </div>
                     );
                   })
