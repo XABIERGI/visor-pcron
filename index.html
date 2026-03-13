@@ -2617,7 +2617,7 @@ function TabFiltros({filtros,setFiltros,savedFiltros,setSavedFiltros,pacientes,l
                 badgeColor={loaded?"#059669":"#94A3B8"}>
                 {!loaded ? (
                   <div style={{textAlign:"center",padding:"8px 0"}}>
-                    <button onClick={()=>{ onLoadGrupo(g.id, pacientes.map(p=>p.id)); toggle(`crit_${g.id}`); }}
+                    <button onClick={()=>{ onLoadGrupo(g.id, pacientes.map(p=>p.id)); }}
                       style={{padding:"6px 14px",background:"#1D4ED8",color:"white",border:"none",
                         borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer"}}>
                       📦 Cargar criterios
@@ -4197,7 +4197,10 @@ function App() {
     setAuthUser(null); setAuthState("login"); setPacientes([]);
   };
 
+  const cargandoRef = React.useRef(false);
   const cargarDatos=async()=>{
+    if(cargandoRef.current) { console.log("⚠️ cargarDatos ya en curso, ignorando llamada duplicada"); return; }
+    cargandoRef.current = true;
     setLoading(true); setProgreso(0);
     try {
       const sbAuth = await getSupabase();
@@ -4209,6 +4212,8 @@ function App() {
       setError(e.message||"Error de conexión con Supabase");
       setPacientes(DEMO_PACIENTES);
       setLoading(false);
+    } finally {
+      cargandoRef.current = false;
     }
   };
 
