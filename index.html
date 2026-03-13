@@ -126,9 +126,9 @@ async function getSupabase() {
 // ❷  CONSTANTES CLÍNICAS
 // ════════════════════════════════════════════════════════════════════════════
 const META = {
-  version:"v7.1", totalBD:97525,
+  version:"v7.1", totalBD:88948,
   fuente:"Osabide Global · Osanaia · OAS",
-  fechaAct:"12/03/2026",
+  fechaAct:"13/03/2026",
 };
 
 const POB_DEF = {
@@ -1016,16 +1016,17 @@ function mapearPaciente(r) {
 async function cargarCriteriosGrupo(grupo, ids) {
   const sb = await getSupabase();
   if (!sb) return {};
-  // grupo.items = [{k,l}] — solo necesitamos cargar criterios de esos pacientes
-  const {data, error} = await sb
-    .from("PACIENTES")
-    .select("id_paciente,criterios")
-    .in("id_paciente", ids.slice(0,1000));
-  if (error || !data) { console.error("cargarCriteriosGrupo error:", error); return {}; }
   const map = {};
-  data.forEach(row => {
-    map[row.id_paciente] = row.criterios || {};
-  });
+  const batchSize = 500; // .in() seguro con 500 IDs
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize);
+    const {data, error} = await sb
+      .from("PACIENTES")
+      .select("id_paciente,criterios")
+      .in("id_paciente", batch);
+    if (error || !data) { console.error("cargarCriteriosGrupo error:", error); continue; }
+    data.forEach(row => { map[row.id_paciente] = row.criterios || {}; });
+  }
   return map;
 }
 
@@ -4259,22 +4260,19 @@ function App() {
   },[authState]);
 
   // ── CARGA LAZY CRITERIOS ─────────────────────────────────────────────────
-  const handleLoadGrupo=useCallback((grupoId, ids)=>{
+  const handleLoadGrupo=useCallback(async (grupoId, ids)=>{
     if(loadedGrupos.includes(grupoId)) return;
-    // Los criterios ya están en _criterios de cada paciente (carga inicial)
-    // Construir el mapa directamente sin llamar a Supabase
-    const idSet = new Set(ids);
-    const map = {};
-    pacientes.forEach(p=>{
-      if(idSet.has(p.id) && p._criterios && Object.keys(p._criterios).length>0) {
-        map[p.id] = p._criterios;
-      }
-    });
-    // Marcar cargado aunque esté vacío (para no mostrar botón indefinidamente)
-    setCriteriosData(prev=>({...prev,[grupoId]: Object.keys(map).length>0 ? map : {_loaded:true}}));
-    setLoadedGrupos(prev=>[...prev,grupoId]);
-    console.log("Criterios cargados para", grupoId, ":", Object.keys(map).length, "pacientes");
-  },[loadedGrupos, pacientes]);
+    setLoadedGrupos(prev=>[...prev,grupoId]); // marcar inmediatamente para evitar doble carga
+    console.log("⬇️ Cargando criterios a demanda para", grupoId, "—", ids.length, "pacientes");
+    try {
+      const map = await cargarCriteriosGrupo({}, ids);
+      setCriteriosData(prev=>({...prev,[grupoId]: Object.keys(map).length>0 ? map : {_loaded:true}}));
+      console.log("✅ Criterios cargados para", grupoId, ":", Object.keys(map).length, "pacientes");
+    } catch(e) {
+      console.error("❌ Error cargando criterios para", grupoId, e);
+      setCriteriosData(prev=>({...prev,[grupoId]:{_loaded:true}}));
+    }
+  },[loadedGrupos]);
 
   const canCIC=ROLES_DEF[role]?.cic||false;
 
